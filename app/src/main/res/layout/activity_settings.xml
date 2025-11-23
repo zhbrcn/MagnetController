@@ -349,7 +349,7 @@
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:hint="N 极短按"
-                    app:endIconMode="dropdown">
+                    app:endIconMode="dropdown_menu">
 
                     <com.google.android.material.textfield.MaterialAutoCompleteTextView
                         android:id="@+id/menuNShort"
@@ -363,7 +363,7 @@
                     android:layout_height="wrap_content"
                     android:hint="N 极长按"
                     android:layout_marginTop="10dp"
-                    app:endIconMode="dropdown">
+                    app:endIconMode="dropdown_menu">
 
                     <com.google.android.material.textfield.MaterialAutoCompleteTextView
                         android:id="@+id/menuNLong"
@@ -377,7 +377,7 @@
                     android:layout_height="wrap_content"
                     android:hint="S 极短按"
                     android:layout_marginTop="12dp"
-                    app:endIconMode="dropdown">
+                    app:endIconMode="dropdown_menu">
 
                     <com.google.android.material.textfield.MaterialAutoCompleteTextView
                         android:id="@+id/menuSShort"
@@ -391,7 +391,7 @@
                     android:layout_height="wrap_content"
                     android:hint="S 极长按"
                     android:layout_marginTop="10dp"
-                    app:endIconMode="dropdown">
+                    app:endIconMode="dropdown_menu">
 
                     <com.google.android.material.textfield.MaterialAutoCompleteTextView
                         android:id="@+id/menuSLong"
