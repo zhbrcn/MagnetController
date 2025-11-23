@@ -3,13 +3,14 @@ package com.example.magnetcontroller
 import android.content.Intent
 import android.os.Bundle
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.content.ContextCompat
 
 class VoiceTriggerActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         // 在前台上下文直接执行唤醒逻辑
         val serviceIntent = Intent(this, MagnetService::class.java)
-        startService(serviceIntent)
+        ContextCompat.startForegroundService(this, serviceIntent)
 
         val cmdIntent = Intent(Intent.ACTION_VOICE_COMMAND).apply {
             addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
