@@ -19,6 +19,8 @@ import android.media.ToneGenerator
 import android.os.Build
 import android.os.IBinder
 import android.os.PowerManager
+import android.os.Handler
+import android.os.Looper
 import android.os.VibrationEffect
 import android.os.Vibrator
 import android.os.VibratorManager
@@ -54,6 +56,8 @@ class MagnetService : Service(), SensorEventListener {
     private var lastUiPole = "none"
     private var lastUiStatus = ""
     private var isScreenOn = true
+    private val vibrationHandler = Handler(Looper.getMainLooper())
+    private var vibrationTimeout: Runnable? = null
 
     private val actionCooldownMs = 900L
     private var longPressThresholdMs = 1500L
@@ -432,11 +436,20 @@ class MagnetService : Service(), SensorEventListener {
         if (isContinuousVibrating) return
         val vibrator = getVibrator()
         if (vibrator.hasVibrator()) {
+            val fallbackDuration = (longPressThresholdMs + 400L).coerceIn(800L, 4000L)
+            vibrationTimeout?.let { vibrationHandler.removeCallbacks(it) }
+            vibrationTimeout = Runnable {
+                stopVibration()
+                logToUI("ℹ️ 震动已自动停止，防止误触持续反馈")
+            }.also { vibrationHandler.postDelayed(it, fallbackDuration) }
+
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                vibrator.vibrate(VibrationEffect.createOneShot(5000, VibrationEffect.DEFAULT_AMPLITUDE))
+                vibrator.vibrate(
+                    VibrationEffect.createOneShot(fallbackDuration, VibrationEffect.DEFAULT_AMPLITUDE)
+                )
             } else {
                 @Suppress("DEPRECATION")
-                vibrator.vibrate(5000)
+                vibrator.vibrate(fallbackDuration)
             }
             isContinuousVibrating = true
         }
@@ -445,6 +458,8 @@ class MagnetService : Service(), SensorEventListener {
     private fun stopVibration() {
         if (isContinuousVibrating) {
             getVibrator().cancel()
+            vibrationTimeout?.let { vibrationHandler.removeCallbacks(it) }
+            vibrationTimeout = null
             isContinuousVibrating = false
         }
     }
