@@ -22,7 +22,7 @@
         <TextView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="在胸前口袋放好手机，用手套外侧的磁铁轻触即可切歌或唤醒助手。下面的参数按雪场体感分组，方便快速调整。"
+            android:text="按雪场佩戴方式重写的触发逻辑：以 Z 轴带符号的变化判定 N/S，带滞回防抖，强磁饱和时自动忽略。"
             android:textColor="#5F6A84"
             android:textSize="14sp"
             android:lineSpacingExtra="2dp"
@@ -46,7 +46,7 @@
                 <TextView
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:text="触发与长按"
+                    android:text="触发与防抖"
                     android:textStyle="bold"
                     android:textColor="@color/alpine_navy"
                     android:textSize="16sp"
@@ -55,43 +55,57 @@
                 <com.google.android.material.textfield.TextInputLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:hint="触发阈值 (μT)"
-                    app:helperText="磁铁靠近达到此强度开始计时">
+                    android:hint="按下阈值 (μT)"
+                    app:helperText="Z 轴相对基线超出此值判定按下并锁定极性">
 
                     <com.google.android.material.textfield.TextInputEditText
-                        android:id="@+id/etThresholdTrigger"
+                        android:id="@+id/etPressThreshold"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:inputType="numberDecimal"
-                        android:hint="例：500" />
+                        android:hint="例：180" />
                 </com.google.android.material.textfield.TextInputLayout>
 
                 <com.google.android.material.textfield.TextInputLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:hint="恢复阈值 (μT)"
-                    app:helperText="磁铁离开时低于此值判定松开">
+                    android:hint="释放阈值 (μT)"
+                    app:helperText="回落到此值内并稳定判定松开">
 
                     <com.google.android.material.textfield.TextInputEditText
-                        android:id="@+id/etThresholdReset"
+                        android:id="@+id/etReleaseThreshold"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:inputType="numberDecimal"
-                        android:hint="例：300" />
+                        android:hint="例：90" />
                 </com.google.android.material.textfield.TextInputLayout>
 
                 <com.google.android.material.textfield.TextInputLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:hint="恢复防抖 (ms)"
-                    app:helperText="低于恢复阈值需持续多久才算松开">
+                    android:hint="按下防抖 (ms)"
+                    app:helperText="磁场需持续超过阈值多长时间才算按下">
 
                     <com.google.android.material.textfield.TextInputEditText
-                        android:id="@+id/etResetDebounce"
+                        android:id="@+id/etPressDebounce"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:inputType="number"
-                        android:hint="例：80" />
+                        android:hint="例：90" />
+                </com.google.android.material.textfield.TextInputLayout>
+
+                <com.google.android.material.textfield.TextInputLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:hint="释放防抖 (ms)"
+                    app:helperText="低于释放阈值需持续多久才算松开">
+
+                    <com.google.android.material.textfield.TextInputEditText
+                        android:id="@+id/etReleaseDebounce"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:inputType="number"
+                        android:hint="例：110" />
                 </com.google.android.material.textfield.TextInputLayout>
 
                 <com.google.android.material.textfield.TextInputLayout
@@ -128,209 +142,6 @@
                 <TextView
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:text="极性识别"
-                    android:textStyle="bold"
-                    android:textColor="@color/alpine_navy"
-                    android:textSize="16sp"
-                    android:layout_marginBottom="8dp" />
-
-                <com.google.android.material.textfield.TextInputLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:hint="极性识别最小值 (μT)"
-                    app:helperText="低于此值不锁定极性">
-
-                    <com.google.android.material.textfield.TextInputEditText
-                        android:id="@+id/etPolarityMin"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:inputType="numberDecimal"
-                        android:hint="例：50" />
-                </com.google.android.material.textfield.TextInputLayout>
-
-                <com.google.android.material.textfield.TextInputLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:hint="极性识别最大值 (μT)"
-                    app:helperText="高于此值锁定极性">
-
-                    <com.google.android.material.textfield.TextInputEditText
-                        android:id="@+id/etPolarityMax"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:inputType="numberDecimal"
-                        android:hint="例：2000" />
-                </com.google.android.material.textfield.TextInputLayout>
-
-                <com.google.android.material.textfield.TextInputLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:hint="极性防抖时间 (ms)"
-                    app:helperText="极性需稳定多久才确认">
-
-                    <com.google.android.material.textfield.TextInputEditText
-                        android:id="@+id/etPolarityDebounce"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:inputType="number"
-                        android:hint="例：50" />
-                </com.google.android.material.textfield.TextInputLayout>
-            </LinearLayout>
-        </com.google.android.material.card.MaterialCardView>
-
-        <com.google.android.material.card.MaterialCardView
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginBottom="12dp"
-            app:cardCornerRadius="14dp"
-            app:cardElevation="2dp"
-            app:strokeColor="@color/frost"
-            app:strokeWidth="1dp">
-
-            <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:orientation="vertical"
-                android:padding="16dp">
-
-                <TextView
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:text="能耗与采样"
-                    android:textStyle="bold"
-                    android:textColor="@color/alpine_navy"
-                    android:textSize="16sp"
-                    android:layout_marginBottom="8dp" />
-
-                <com.google.android.material.textfield.TextInputLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:hint="节能阈值 (μT)"
-                    app:helperText="连续低于此值视为远离，降采样">
-
-                    <com.google.android.material.textfield.TextInputEditText
-                        android:id="@+id/etEnergyThreshold"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:inputType="numberDecimal"
-                        android:hint="例：100" />
-                </com.google.android.material.textfield.TextInputLayout>
-
-                <com.google.android.material.textfield.TextInputLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:hint="节能切换延时 (ms)"
-                    app:helperText="低于阈值累计多久后降采样">
-
-                    <com.google.android.material.textfield.TextInputEditText
-                        android:id="@+id/etEnergyHoldMs"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:inputType="number"
-                        android:hint="例：2000" />
-                </com.google.android.material.textfield.TextInputLayout>
-
-                <com.google.android.material.textfield.TextInputLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:hint="高采样频率 (Hz)"
-                    app:helperText="磁铁接近时使用">
-
-                    <com.google.android.material.textfield.TextInputEditText
-                        android:id="@+id/etSamplingHighHz"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:inputType="numberDecimal"
-                        android:hint="例：50" />
-                </com.google.android.material.textfield.TextInputLayout>
-
-                <com.google.android.material.textfield.TextInputLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:hint="低采样频率 (Hz)"
-                    app:helperText="远离磁铁时使用">
-
-                    <com.google.android.material.textfield.TextInputEditText
-                        android:id="@+id/etSamplingLowHz"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:inputType="numberDecimal"
-                        android:hint="例：15" />
-                </com.google.android.material.textfield.TextInputLayout>
-            </LinearLayout>
-        </com.google.android.material.card.MaterialCardView>
-
-        <com.google.android.material.card.MaterialCardView
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginBottom="12dp"
-            app:cardCornerRadius="14dp"
-            app:cardElevation="2dp"
-            app:strokeColor="@color/frost"
-            app:strokeWidth="1dp">
-
-            <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:orientation="vertical"
-                android:padding="16dp">
-
-                <TextView
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:text="磁极检测模式"
-                    android:textStyle="bold"
-                    android:textColor="@color/alpine_navy"
-                    android:textSize="16sp"
-                    android:layout_marginBottom="8dp" />
-
-                <TextView
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:text="雪场按键偏好：单磁铁用“所有磁极”，分左右手可用“区分磁极”。"
-                    android:textColor="#5F6A84"
-                    android:textSize="13sp"
-                    android:layout_marginBottom="8dp" />
-
-                <RadioGroup
-                    android:id="@+id/rgPoleMode"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content">
-
-                    <RadioButton
-                        android:id="@+id/rbBothPoles"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:text="所有磁极（N/S 都触发）"
-                        android:checked="true" />
-
-                    <RadioButton
-                        android:id="@+id/rbDifferent"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:text="区分磁极（N/S 可配置不同动作）" />
-                </RadioGroup>
-            </LinearLayout>
-        </com.google.android.material.card.MaterialCardView>
-
-        <com.google.android.material.card.MaterialCardView
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginBottom="12dp"
-            app:cardCornerRadius="14dp"
-            app:cardElevation="2dp"
-            app:strokeColor="@color/frost"
-            app:strokeWidth="1dp">
-
-            <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:orientation="vertical"
-                android:padding="16dp">
-
-                <TextView
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
                     android:text="动作映射"
                     android:textStyle="bold"
                     android:textColor="@color/alpine_navy"
@@ -340,7 +151,7 @@
                 <TextView
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:text="短按用来切歌/暂停，长按可唤醒语音助手或调节音量。下拉快速选择，不再需要滚动一长排按钮。"
+                    android:text="N/S 极分别支持短按与长按四种手势，可按个人习惯选择。"
                     android:textColor="#5F6A84"
                     android:textSize="13sp"
                     android:layout_marginBottom="12dp" />

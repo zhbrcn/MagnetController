@@ -34,22 +34,11 @@ class SettingsActivity : AppCompatActivity() {
     }
 
     private fun loadSettings() {
-        binding.etThresholdTrigger.setText(prefs.thresholdTrigger.toInt().toString())
-        binding.etThresholdReset.setText(prefs.thresholdReset.toInt().toString())
-        binding.etResetDebounce.setText(prefs.thresholdResetDebounceMs.toString())
+        binding.etPressThreshold.setText(prefs.pressThreshold.toInt().toString())
+        binding.etReleaseThreshold.setText(prefs.releaseThreshold.toInt().toString())
+        binding.etPressDebounce.setText(prefs.pressDebounceMs.toString())
+        binding.etReleaseDebounce.setText(prefs.releaseDebounceMs.toString())
         binding.etLongPressMs.setText(prefs.longPressDuration.toString())
-        binding.etPolarityMin.setText(prefs.polarityMin.toInt().toString())
-        binding.etPolarityMax.setText(prefs.polarityMax.toInt().toString())
-        binding.etPolarityDebounce.setText(prefs.polarityDebounceMs.toString())
-        binding.etEnergyThreshold.setText(prefs.energySaveThreshold.toInt().toString())
-        binding.etEnergyHoldMs.setText(prefs.energySaveHoldMs.toString())
-        binding.etSamplingHighHz.setText(prefs.samplingHighRateHz.toString())
-        binding.etSamplingLowHz.setText(prefs.samplingLowRateHz.toString())
-
-        when (prefs.poleMode) {
-            "different" -> binding.rbDifferent.isChecked = true
-            else -> binding.rbBothPoles.isChecked = true
-        }
 
         setupActionDropdown(binding.menuNShort, prefs.nShortAction)
         setupActionDropdown(binding.menuNLong, prefs.nLongAction)
@@ -62,19 +51,11 @@ class SettingsActivity : AppCompatActivity() {
     }
 
     private fun saveSettings() {
-        prefs.thresholdTrigger = binding.etThresholdTrigger.text.toString().toFloatOrNull() ?: 500f
-        prefs.thresholdReset = binding.etThresholdReset.text.toString().toFloatOrNull() ?: 300f
-        prefs.thresholdResetDebounceMs = binding.etResetDebounce.text.toString().toLongOrNull() ?: 80L
+        prefs.pressThreshold = binding.etPressThreshold.text.toString().toFloatOrNull() ?: 180f
+        prefs.releaseThreshold = binding.etReleaseThreshold.text.toString().toFloatOrNull() ?: 90f
+        prefs.pressDebounceMs = binding.etPressDebounce.text.toString().toLongOrNull() ?: 90L
+        prefs.releaseDebounceMs = binding.etReleaseDebounce.text.toString().toLongOrNull() ?: 110L
         prefs.longPressDuration = binding.etLongPressMs.text.toString().toLongOrNull() ?: 1500L
-        prefs.polarityMin = binding.etPolarityMin.text.toString().toFloatOrNull() ?: 50f
-        prefs.polarityMax = binding.etPolarityMax.text.toString().toFloatOrNull() ?: 2000f
-        prefs.polarityDebounceMs = binding.etPolarityDebounce.text.toString().toLongOrNull() ?: 50L
-        prefs.energySaveThreshold = binding.etEnergyThreshold.text.toString().toFloatOrNull() ?: 100f
-        prefs.energySaveHoldMs = binding.etEnergyHoldMs.text.toString().toLongOrNull() ?: 2000L
-        prefs.samplingHighRateHz = binding.etSamplingHighHz.text.toString().toFloatOrNull() ?: 50f
-        prefs.samplingLowRateHz = binding.etSamplingLowHz.text.toString().toFloatOrNull() ?: 15f
-
-        prefs.poleMode = if (binding.rbDifferent.isChecked) "different" else "both"
 
         prefs.nShortAction = readSelectedAction(binding.menuNShort)
         prefs.nLongAction = readSelectedAction(binding.menuNLong)
@@ -85,14 +66,12 @@ class SettingsActivity : AppCompatActivity() {
             setPackage(packageName)
         }
         sendBroadcast(intent)
-
         finish()
     }
 
     private fun setupActionDropdown(view: MaterialAutoCompleteTextView, actionKey: String) {
         val adapter = ArrayAdapter(this, android.R.layout.simple_list_item_1, actionOptions.map { it.label })
         view.setAdapter(adapter)
-
         val normalized = normalizeActionKey(actionKey)
         val selected = actionOptions.find { it.key == normalized } ?: actionOptions.first()
         view.setText(selected.label, false)

@@ -14,53 +14,25 @@ class AppPreferences(context: Context) {
         "volume_up"
     )
 
-    var thresholdTrigger: Float
-        get() = prefs.getFloat("threshold_trigger", 500f)
-        set(value) = prefs.edit().putFloat("threshold_trigger", value).apply()
+    var pressThreshold: Float
+        get() = prefs.getFloat("press_threshold", prefs.getFloat("threshold_trigger", 180f))
+        set(value) = prefs.edit().putFloat("press_threshold", value).apply()
+
+    var releaseThreshold: Float
+        get() = prefs.getFloat("release_threshold", prefs.getFloat("threshold_reset", 90f))
+        set(value) = prefs.edit().putFloat("release_threshold", value).apply()
+
+    var pressDebounceMs: Long
+        get() = prefs.getLong("press_debounce_ms", 90L)
+        set(value) = prefs.edit().putLong("press_debounce_ms", value).apply()
+
+    var releaseDebounceMs: Long
+        get() = prefs.getLong("release_debounce_ms", prefs.getLong("threshold_reset_debounce_ms", 110L))
+        set(value) = prefs.edit().putLong("release_debounce_ms", value).apply()
 
     var longPressDuration: Long
         get() = prefs.getLong("long_press_duration", 1500L)
         set(value) = prefs.edit().putLong("long_press_duration", value).apply()
-
-    var poleMode: String
-        get() = prefs.getString("pole_mode", "both") ?: "both"
-        set(value) = prefs.edit().putString("pole_mode", value).apply()
-
-    var polarityMin: Float
-        get() = prefs.getFloat("polarity_min", 50f)
-        set(value) = prefs.edit().putFloat("polarity_min", value).apply()
-
-    var polarityMax: Float
-        get() = prefs.getFloat("polarity_max", 2000f)
-        set(value) = prefs.edit().putFloat("polarity_max", value).apply()
-
-    var polarityDebounceMs: Long
-        get() = prefs.getLong("polarity_debounce_ms", 50L)
-        set(value) = prefs.edit().putLong("polarity_debounce_ms", value).apply()
-
-    var thresholdReset: Float
-        get() = prefs.getFloat("threshold_reset", 300f)
-        set(value) = prefs.edit().putFloat("threshold_reset", value).apply()
-
-    var energySaveThreshold: Float
-        get() = prefs.getFloat("energy_save_threshold", 100f)
-        set(value) = prefs.edit().putFloat("energy_save_threshold", value).apply()
-
-    var energySaveHoldMs: Long
-        get() = prefs.getLong("energy_save_hold_ms", 2000L)
-        set(value) = prefs.edit().putLong("energy_save_hold_ms", value).apply()
-
-    var samplingHighRateHz: Float
-        get() = prefs.getFloat("sampling_high_rate_hz", 50f)
-        set(value) = prefs.edit().putFloat("sampling_high_rate_hz", value).apply()
-
-    var samplingLowRateHz: Float
-        get() = prefs.getFloat("sampling_low_rate_hz", 15f)
-        set(value) = prefs.edit().putFloat("sampling_low_rate_hz", value).apply()
-
-    var thresholdResetDebounceMs: Long
-        get() = prefs.getLong("threshold_reset_debounce_ms", 80L)
-        set(value) = prefs.edit().putLong("threshold_reset_debounce_ms", value).apply()
 
     var nShortAction: String
         get() = getAction("n_short_action", "play_pause")
