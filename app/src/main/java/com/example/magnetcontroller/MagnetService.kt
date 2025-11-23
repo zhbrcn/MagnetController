@@ -36,6 +36,13 @@ class MagnetService : Service(), SensorEventListener {
         const val ACTION_TRIGGER_VOICE = "com.example.magnetcontroller.TRIGGER_VOICE"
     }
 
+    private data class CompensatedField(
+        val x: Float,
+        val y: Float,
+        val z: Float,
+        val magnitude: Float
+    )
+
     private lateinit var sensorManager: SensorManager
     private var magnetometer: Sensor? = null
     private lateinit var prefs: AppPreferences
@@ -52,6 +59,7 @@ class MagnetService : Service(), SensorEventListener {
     private var wakeLock: PowerManager.WakeLock? = null
     private var toneGenerator: ToneGenerator? = null
     private var lastMagSq: Float = 0f
+    private var lastRawMag: Float = 0f
     private var lastUiMag = -1f
     private var lastUiPole = "none"
     private var lastUiStatus = ""
@@ -65,6 +73,12 @@ class MagnetService : Service(), SensorEventListener {
     private var releaseDropSince = 0L
     private val rapidReleaseWindowMs = 150L
     private var lastSensorEventMs = 0L
+    private var biasX = 0f
+    private var biasY = 0f
+    private var biasZ = 0f
+    private var biasInitialized = false
+    private var stuckHighSince = 0L
+    private var lastBiasLog = 0L
 
     private val actionCooldownMs = 900L
     private var longPressThresholdMs = 1500L
@@ -224,6 +238,59 @@ class MagnetService : Service(), SensorEventListener {
         }
     }
 
+    private fun compensateDrift(
+        rawX: Float,
+        rawY: Float,
+        rawZ: Float,
+        rawMag: Float,
+        now: Long
+    ): CompensatedField {
+        if (!biasInitialized) {
+            biasInitialized = true
+        }
+
+        val deltaMag = abs(rawMag - lastRawMag)
+
+        val calmAlpha = when {
+            triggerStartTime == 0L && rawMag < prefs.thresholdReset * 0.6f -> 0.08f
+            triggerStartTime == 0L && rawMag < prefs.thresholdTrigger * 0.55f -> 0.04f
+            else -> 0f
+        }
+        if (calmAlpha > 0f) {
+            biasX = lerp(biasX, rawX, calmAlpha)
+            biasY = lerp(biasY, rawY, calmAlpha)
+            biasZ = lerp(biasZ, rawZ, calmAlpha)
+        }
+
+        val stuckMagThreshold = prefs.thresholdTrigger * 0.9f
+        val stuckDelta = 0.8f
+        val allowBleedDuringTrigger = triggerStartTime == 0L || now - triggerStartTime > 220L
+        if (allowBleedDuringTrigger && rawMag > stuckMagThreshold && deltaMag < stuckDelta) {
+            if (stuckHighSince == 0L) stuckHighSince = now
+            if (now - stuckHighSince > 320L) {
+                biasX = lerp(biasX, rawX, 0.18f)
+                biasY = lerp(biasY, rawY, 0.18f)
+                biasZ = lerp(biasZ, rawZ, 0.18f)
+
+                if (now - lastBiasLog > 1500L) {
+                    logToUI("⚠️ 磁力计疑似被强磁拉偏，已自动校准基线")
+                    lastBiasLog = now
+                }
+            }
+        } else {
+            stuckHighSince = 0L
+        }
+
+        val compensatedX = rawX - biasX
+        val compensatedY = rawY - biasY
+        val compensatedZ = rawZ - biasZ
+        val compensatedMag = sqrt(
+            compensatedX * compensatedX + compensatedY * compensatedY + compensatedZ * compensatedZ
+        )
+
+        return CompensatedField(compensatedX, compensatedY, compensatedZ, compensatedMag)
+    }
+
     override fun onBind(intent: Intent?): IBinder? = null
 
     override fun onDestroy() {
@@ -241,16 +308,19 @@ class MagnetService : Service(), SensorEventListener {
         if (event?.sensor?.type != Sensor.TYPE_MAGNETIC_FIELD) return
 
         val now = System.currentTimeMillis()
-        val x = event.values[0]
-        val y = event.values[1]
-        val z = event.values[2]
-        val magSq = x * x + y * y + z * z
-        val magnitude = sqrt(magSq.toDouble()).toFloat()
+        val rawX = event.values[0]
+        val rawY = event.values[1]
+        val rawZ = event.values[2]
+        val rawMagSq = rawX * rawX + rawY * rawY + rawZ * rawZ
+        val rawMag = sqrt(rawMagSq.toDouble()).toFloat()
 
-        lastMagSq = magSq
+        val (x, y, z, magnitude) = compensateDrift(rawX, rawY, rawZ, rawMag, now)
+
+        lastMagSq = magnitude * magnitude
+        lastRawMag = rawMag
         lastSensorEventMs = now
 
-        updateSamplingRate(magSq, now)
+        updateSamplingRate(lastMagSq, now)
 
         val candidate = if (x >= z) "N" else "S"
 
@@ -682,6 +752,10 @@ class MagnetService : Service(), SensorEventListener {
         } catch (e: Exception) {
             logToUI("⚠️ 音量调整失败: ${e.message}")
         }
+    }
+
+    private fun lerp(current: Float, target: Float, alpha: Float): Float {
+        return current + (target - current) * alpha
     }
 
     private fun getVibrator(): Vibrator {
