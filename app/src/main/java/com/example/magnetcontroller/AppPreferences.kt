@@ -67,15 +67,15 @@ class AppPreferences(context: Context) {
         set(value) = setAction("n_short_action", value)
 
     var nLongAction: String
-        get() = getAction("n_long_action", "voice")
+        get() = getAction("n_long_action", "next")
         set(value) = setAction("n_long_action", value)
 
     var sShortAction: String
-        get() = getAction("s_short_action", "play_pause")
+        get() = getAction("s_short_action", "previous")
         set(value) = setAction("s_short_action", value)
 
     var sLongAction: String
-        get() = getAction("s_long_action", "voice")
+        get() = getAction("s_long_action", "volume_down")
         set(value) = setAction("s_long_action", value)
 
     private fun getAction(key: String, default: String): String {
