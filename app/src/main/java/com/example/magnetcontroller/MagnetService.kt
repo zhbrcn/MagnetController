@@ -21,6 +21,8 @@ import android.os.Handler
 import android.os.IBinder
 import android.os.Looper
 import android.os.PowerManager
+import android.os.Handler
+import android.os.Looper
 import android.os.VibrationEffect
 import android.os.Vibrator
 import android.os.VibratorManager
@@ -62,6 +64,19 @@ class MagnetService : Service(), SensorEventListener {
     private var wakeLock: PowerManager.WakeLock? = null
     private var toneGenerator: ToneGenerator? = null
     private var isScreenOn = true
+    private val vibrationHandler = Handler(Looper.getMainLooper())
+    private var vibrationTimeout: Runnable? = null
+    private val staleHandler = Handler(Looper.getMainLooper())
+    private var staleRunnable: Runnable? = null
+    private var forceHighUntil = 0L
+    private var lastSensorEventMs = 0L
+    private var triggerState: TriggerState = TriggerState.Idle
+    private var filteredDelta = 0f
+    private var baseline = floatArrayOf(0f, 0f, 0f)
+    private var baselineSamples = 0
+    private var baselineReady = false
+    private var lastQuietUpdateMs = 0L
+    private var poleLockUntil = 0L
 
     private val vibrationHandler = Handler(Looper.getMainLooper())
     private var vibrationTimeout: Runnable? = null
@@ -183,6 +198,43 @@ class MagnetService : Service(), SensorEventListener {
             // prioritize responsiveness; power impact is acceptable for this use case
             sensorManager.registerListener(this, it, SensorManager.SENSOR_DELAY_FASTEST)
         }
+    }
+
+    private fun primeBaseline(rawX: Float, rawY: Float, rawZ: Float) {
+        if (baselineReady) return
+        baseline[0] += rawX
+        baseline[1] += rawY
+        baseline[2] += rawZ
+        baselineSamples++
+
+        if (baselineSamples >= 80) {
+            baseline[0] /= baselineSamples
+            baseline[1] /= baselineSamples
+            baseline[2] /= baselineSamples
+            baselineReady = true
+        }
+    }
+
+    private fun gentlyUpdateBaseline(rawX: Float, rawY: Float, rawZ: Float, deltaMag: Float, now: Long) {
+        if (!baselineReady) return
+        if (triggerState != TriggerState.Idle) return
+
+        val calmThreshold = prefs.thresholdReset * 0.45f
+        val quietEnough = deltaMag < calmThreshold
+        val enoughTimePassed = now - lastQuietUpdateMs > 250L
+
+        if (quietEnough && enoughTimePassed) {
+            val alpha = 0.02f
+            baseline[0] = lerp(baseline[0], rawX, alpha)
+            baseline[1] = lerp(baseline[1], rawY, alpha)
+            baseline[2] = lerp(baseline[2], rawZ, alpha)
+            lastQuietUpdateMs = now
+        }
+    }
+
+    private fun computeDelta(rawX: Float, rawY: Float, rawZ: Float): Triple<Float, Float, Float> {
+        if (!baselineReady) return Triple(rawX, rawY, rawZ)
+        return Triple(rawX - baseline[0], rawY - baseline[1], rawZ - baseline[2])
     }
 
     override fun onBind(intent: Intent?): IBinder? = null
@@ -566,6 +618,10 @@ class MagnetService : Service(), SensorEventListener {
         } catch (e: Exception) {
             logToUI("⚠️ 音量调整失败: ${e.message}")
         }
+    }
+
+    private fun lerp(current: Float, target: Float, alpha: Float): Float {
+        return current + (target - current) * alpha
     }
 
     private fun getVibrator(): Vibrator {
