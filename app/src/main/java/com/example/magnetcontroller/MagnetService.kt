@@ -455,6 +455,20 @@ class MagnetService : Service(), SensorEventListener {
                     logToUI("⚠️ 传感器数据暂停，已保护性复位")
                     forceReleaseFallback(now)
                 }
+
+                if (magnitude > peakMagSinceTrigger) {
+                    peakMagSinceTrigger = magnitude
+                    releaseDropSince = 0L
+                } else if (peakMagSinceTrigger > 0f && magnitude <= peakMagSinceTrigger * 0.55f) {
+                    if (releaseDropSince == 0L) {
+                        releaseDropSince = now
+                    } else if (now - releaseDropSince >= rapidReleaseWindowMs) {
+                        forceHighUntil = now + 800
+                        if (magnitude < prefs.thresholdTrigger * 0.7f) {
+                            resetBelowSince = now - prefs.thresholdResetDebounceMs
+                        }
+                    }
+                }
             }
 
             staleHandler.postDelayed(staleRunnable!!, 180L)
@@ -498,6 +512,104 @@ class MagnetService : Service(), SensorEventListener {
         activePole = "none"
         resetBelowSince = 0L
         triggerState = TriggerState.Idle
+    }
+
+    private fun playTriggerChime() {
+        try {
+            if (!isBluetoothAudioActive()) {
+                logToUI("⚠️ 未检测到蓝牙耳机，已跳过提示音")
+                return
+            }
+
+            val audioManager = getSystemService(Context.AUDIO_SERVICE) as AudioManager
+            audioManager.isSpeakerphoneOn = false
+
+            if (toneGenerator == null) {
+                toneGenerator = ToneGenerator(AudioManager.STREAM_MUSIC, 100)
+            }
+            toneGenerator?.startTone(ToneGenerator.TONE_PROP_BEEP2, 160)
+        } catch (e: Exception) {
+            logToUI("⚠️ 提示音播放失败: ${e.message}")
+        }
+    }
+
+    private fun isBluetoothAudioActive(): Boolean {
+        val audioManager = getSystemService(Context.AUDIO_SERVICE) as AudioManager
+        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            audioManager.getDevices(AudioManager.GET_DEVICES_OUTPUTS).any { device ->
+                device.type == AudioDeviceInfo.TYPE_BLUETOOTH_A2DP ||
+                    device.type == AudioDeviceInfo.TYPE_BLUETOOTH_SCO
+            }
+        } else {
+            @Suppress("DEPRECATION")
+            audioManager.isBluetoothA2dpOn || audioManager.isBluetoothScoOn
+        }
+    }
+
+    private fun shouldRelease(magnitude: Float, now: Long): Boolean {
+        val hasRapidDrop = releaseDropSince != 0L && (now - releaseDropSince) >= rapidReleaseWindowMs
+        if (hasRapidDrop && magnitude < prefs.thresholdTrigger * 0.7f) {
+            return true
+        }
+        return magnitude < prefs.thresholdReset
+    }
+
+    private fun startStaleMonitor() {
+        staleRunnable = Runnable {
+            val now = System.currentTimeMillis()
+            val staleThreshold = if (triggerStartTime != 0L) 220L else 700L
+            val sinceLast = now - lastSensorEventMs
+
+            if (lastSensorEventMs != 0L && sinceLast > staleThreshold) {
+                refreshSensorListener()
+
+                if (triggerStartTime != 0L) {
+                    logToUI("⚠️ 传感器数据暂停，已保护性复位")
+                    forceReleaseFallback(now)
+                }
+            }
+
+            staleHandler.postDelayed(staleRunnable!!, 180L)
+        }.also { staleHandler.postDelayed(it, 180L) }
+    }
+
+    private fun stopStaleMonitor() {
+        staleRunnable?.let { staleHandler.removeCallbacks(it) }
+        staleRunnable = null
+    }
+
+    private fun refreshSensorListener() {
+        magnetometer?.let {
+            sensorManager.unregisterListener(this, it)
+            currentDelayUs = 0
+            sensorManager.registerListener(this, it, samplingHighDelayUs, samplingHighDelayUs)
+            currentDelayUs = samplingHighDelayUs
+            forceHighUntil = System.currentTimeMillis() + 1200
+        }
+    }
+
+    private fun forceReleaseFallback(now: Long) {
+        stopVibration()
+
+        if (triggerStartTime != 0L && !isLongPressTriggered) {
+            val poleForAction = when {
+                activePole == "N" || activePole == "S" -> activePole
+                stablePole == "N" || stablePole == "S" -> stablePole
+                else -> "none"
+            }
+
+            if (poleForAction == "N" || poleForAction == "S") {
+                val action = if (poleForAction == "N") prefs.nShortAction else prefs.sShortAction
+                performAction(action)
+                lastActionTime = now
+            }
+        }
+
+        triggerStartTime = 0L
+        isLongPressTriggered = false
+        activePole = "none"
+        peakMagSinceTrigger = 0f
+        releaseDropSince = 0L
     }
 
     private fun playTriggerChime() {
