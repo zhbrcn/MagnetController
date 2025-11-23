@@ -19,7 +19,7 @@ import android.media.ToneGenerator
 import android.os.Build
 import android.os.Handler as AndroidHandler
 import android.os.IBinder
-import android.os.Looper
+import android.os.Looper as AndroidLooper
 import android.os.PowerManager
 import android.os.Handler
 import android.os.Looper
@@ -65,9 +65,9 @@ class MagnetService : Service(), SensorEventListener {
     private var toneGenerator: ToneGenerator? = null
     private var isScreenOn = true
 
-    private val vibrationHandler = AndroidHandler(Looper.getMainLooper())
+    private val vibrationHandler = AndroidHandler(AndroidLooper.getMainLooper())
     private var vibrationTimeout: Runnable? = null
-    private val staleHandler = AndroidHandler(Looper.getMainLooper())
+    private val staleHandler = AndroidHandler(AndroidLooper.getMainLooper())
     private var staleRunnable: Runnable? = null
 
     private var pressThreshold = 180f
@@ -185,11 +185,6 @@ class MagnetService : Service(), SensorEventListener {
             // prioritize responsiveness; power impact is acceptable for this use case
             sensorManager.registerListener(this, it, SensorManager.SENSOR_DELAY_FASTEST)
         }
-    }
-
-    private fun computeDelta(rawX: Float, rawY: Float, rawZ: Float): Triple<Float, Float, Float> {
-        if (!baselineReady) return Triple(rawX, rawY, rawZ)
-        return Triple(rawX - baseline[0], rawY - baseline[1], rawZ - baseline[2])
     }
 
     override fun onBind(intent: Intent?): IBinder? = null
