@@ -246,39 +246,41 @@ class MagnetService : Service(), SensorEventListener {
         now: Long
     ): CompensatedField {
         if (!biasInitialized) {
+            biasX = rawX
+            biasY = rawY
+            biasZ = rawZ
             biasInitialized = true
         }
 
         val deltaMag = abs(rawMag - lastRawMag)
-
-        val calmAlpha = when {
-            triggerStartTime == 0L && rawMag < prefs.thresholdReset * 0.6f -> 0.08f
-            triggerStartTime == 0L && rawMag < prefs.thresholdTrigger * 0.55f -> 0.04f
-            else -> 0f
-        }
+        val calmAlpha = if (triggerStartTime == 0L && rawMag < prefs.thresholdReset * 0.7f) 0.03f else 0f
         if (calmAlpha > 0f) {
             biasX = lerp(biasX, rawX, calmAlpha)
             biasY = lerp(biasY, rawY, calmAlpha)
             biasZ = lerp(biasZ, rawZ, calmAlpha)
         }
 
-        val stuckMagThreshold = prefs.thresholdTrigger * 0.9f
-        val stuckDelta = 0.8f
-        val allowBleedDuringTrigger = triggerStartTime == 0L || now - triggerStartTime > 220L
+        val stuckMagThreshold = prefs.thresholdTrigger * 0.95f
+        val stuckDelta = 0.6f
+        val allowBleedDuringTrigger = triggerStartTime == 0L || now - triggerStartTime > 260L
         if (allowBleedDuringTrigger && rawMag > stuckMagThreshold && deltaMag < stuckDelta) {
             if (stuckHighSince == 0L) stuckHighSince = now
-            if (now - stuckHighSince > 320L) {
-                biasX = lerp(biasX, rawX, 0.18f)
-                biasY = lerp(biasY, rawY, 0.18f)
-                biasZ = lerp(biasZ, rawZ, 0.18f)
+            if (now - stuckHighSince > 420L) {
+                val bleedAlpha = 0.08f
+                biasX = lerp(biasX, rawX, bleedAlpha)
+                biasY = lerp(biasY, rawY, bleedAlpha)
+                biasZ = lerp(biasZ, rawZ, bleedAlpha)
 
-                if (now - lastBiasLog > 1500L) {
-                    logToUI("⚠️ 磁力计疑似被强磁拉偏，已自动校准基线")
+                if (now - lastBiasLog > 1800L) {
+                    logToUI("⚠️ 磁力计读数疑似拉偏，尝试自动复位")
                     lastBiasLog = now
                 }
             }
         } else {
             stuckHighSince = 0L
+            biasX *= 0.995f
+            biasY *= 0.995f
+            biasZ *= 0.995f
         }
 
         val compensatedX = rawX - biasX
@@ -322,7 +324,7 @@ class MagnetService : Service(), SensorEventListener {
 
         updateSamplingRate(lastMagSq, now)
 
-        val candidate = if (x >= z) "N" else "S"
+        val candidate = determinePole(x, y, z)
 
         if (magnitude > prefs.polarityMax) {
             if (lockedPole == "none") {
@@ -342,8 +344,20 @@ class MagnetService : Service(), SensorEventListener {
 
         val poleForUi = if (lockedPole != "none") lockedPole else stablePole
 
-        sendBroadcastToUI(x, y, z, magnitude, poleForUi, now)
+        sendBroadcastToUI(rawX, rawY, rawZ, rawMag, poleForUi, now)
         processLogic(magnitude, z, now, poleForUi)
+    }
+
+    private fun determinePole(x: Float, y: Float, z: Float): String {
+        val absX = abs(x)
+        val absY = abs(y)
+        val absZ = abs(z)
+
+        return when {
+            absX >= absY && absX >= absZ -> if (x >= 0) "N" else "S"
+            absY >= absX && absY >= absZ -> if (y >= 0) "N" else "S"
+            else -> if (z >= 0) "N" else "S"
+        }
     }
 
     private fun sendBroadcastToUI(x: Float, y: Float, z: Float, mag: Float, pole: String, now: Long) {
