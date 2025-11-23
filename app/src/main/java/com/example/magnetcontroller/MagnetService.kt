@@ -46,6 +46,7 @@ class MagnetService : Service(), SensorEventListener {
     private var lockedPole: String = "none"
     private var lastActionTime = 0L
     private var wakeLock: PowerManager.WakeLock? = null
+    private var lastMagSq: Float = 0f
     private var lastUiMag = -1f
     private var lastUiPole = "none"
     private var lastUiStatus = ""
@@ -122,7 +123,8 @@ class MagnetService : Service(), SensorEventListener {
         belowEnergySince = 0L
         resetBelowSince = 0L
         if (magnetometer != null) {
-            applySamplingDelay(samplingHighDelayUs)
+            val targetDelay = if (lastMagSq >= energyThresholdSq) samplingHighDelayUs else samplingLowDelayUs
+            applySamplingDelay(targetDelay)
         }
     }
 
@@ -226,6 +228,8 @@ class MagnetService : Service(), SensorEventListener {
         val magSq = x * x + y * y + z * z
         val magnitude = sqrt(magSq.toDouble()).toFloat()
 
+        lastMagSq = magSq
+
         updateSamplingRate(magSq, now)
 
         val candidate = if (x >= z) "N" else "S"
@@ -300,13 +304,14 @@ class MagnetService : Service(), SensorEventListener {
 
         val poleInstant = when {
             poleForUi == "N" || poleForUi == "S" -> poleForUi
+            prefs.poleMode == "different" -> "none"
             zValue >= 0 -> "N"
             else -> "S"
         }
 
+        val hasRecognizedPole = poleForUi == "N" || poleForUi == "S" || activePole == "N" || activePole == "S"
         val shouldTrigger = when (prefs.poleMode) {
-            "both" -> true
-            "different" -> true
+            "different" -> hasRecognizedPole
             else -> true
         }
         if (!shouldTrigger) return
@@ -317,9 +322,18 @@ class MagnetService : Service(), SensorEventListener {
                 triggerStartTime = now
                 isLongPressTriggered = false
                 startContinuousVibration()
-                activePole = if (poleForUi == "N" || poleForUi == "S") poleForUi else poleInstant
+                activePole = when {
+                    poleForUi == "N" || poleForUi == "S" -> poleForUi
+                    poleInstant == "N" || poleInstant == "S" -> poleInstant
+                    activePole != "none" -> activePole
+                    else -> stablePole
+                }
             } else {
-                if (prefs.poleMode == "different" && (now - triggerStartTime) >= poleChangeAbortMs) {
+                if (
+                    prefs.poleMode == "different" &&
+                    (now - triggerStartTime) >= poleChangeAbortMs &&
+                    (poleInstant == "N" || poleInstant == "S")
+                ) {
                     activePole = poleInstant
                 }
 
@@ -334,13 +348,9 @@ class MagnetService : Service(), SensorEventListener {
                         activePole == "N" || activePole == "S" -> activePole
                         else -> stablePole
                     }
-                    if (prefs.poleMode == "different" && (poleForAction != "N" && poleForAction != "S")) return
+                    if (poleForAction != "N" && poleForAction != "S") return
 
-                    val action = if (prefs.poleMode == "different") {
-                        if (poleForAction == "N") prefs.nLongAction else prefs.sLongAction
-                    } else {
-                        if (poleForAction == "N") prefs.nLongAction else prefs.sLongAction
-                    }
+                    val action = if (poleForAction == "N") prefs.nLongAction else prefs.sLongAction
 
                     performAction(action)
                     isLongPressTriggered = true
@@ -363,13 +373,9 @@ class MagnetService : Service(), SensorEventListener {
                         activePole == "N" || activePole == "S" -> activePole
                         else -> stablePole
                     }
-                    if (prefs.poleMode == "different" && (poleForAction != "N" && poleForAction != "S")) return
+                    if (poleForAction != "N" && poleForAction != "S") return
 
-                    val action = if (prefs.poleMode == "different") {
-                        if (poleForAction == "N") prefs.nShortAction else prefs.sShortAction
-                    } else {
-                        if (poleForAction == "N") prefs.nShortAction else prefs.sShortAction
-                    }
+                    val action = if (poleForAction == "N") prefs.nShortAction else prefs.sShortAction
 
                     performAction(action)
                     lastActionTime = now
@@ -446,22 +452,6 @@ class MagnetService : Service(), SensorEventListener {
         releaseWakeLock()
     }
 
-    private fun tryPlayPauseLongPress(): Boolean {
-        return try {
-            val audioManager = getSystemService(Context.AUDIO_SERVICE) as AudioManager
-            val eventTime = System.currentTimeMillis()
-            val keyEventDown = KeyEvent(eventTime, eventTime, KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE, 0)
-            val keyEventUp = KeyEvent(eventTime + 1100, eventTime + 1100, KeyEvent.ACTION_UP, KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE, 0)
-            audioManager.dispatchMediaKeyEvent(keyEventDown)
-            Thread.sleep(1100)
-            audioManager.dispatchMediaKeyEvent(keyEventUp)
-            true
-        } catch (e: Exception) {
-            logToUI("⚠️ 媒体键长按失败 ${e.message}")
-            false
-        }
-    }
-
     private fun tryVoiceCommandGeneric(): Boolean {
         return try {
             val intent = Intent(Intent.ACTION_VOICE_COMMAND).apply {
@@ -496,6 +486,7 @@ class MagnetService : Service(), SensorEventListener {
             wakeLock = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "MagnetService:Voice").apply {
                 setReferenceCounted(false)
                 acquire(durationMs)
+                logToUI("⚡ 已获取唤醒锁，保持 ${durationMs}ms")
             }
         } catch (e: SecurityException) {
             logToUI("⚠️ 获取唤醒锁失败：缺少 WAKE_LOCK 权限或被限制")
