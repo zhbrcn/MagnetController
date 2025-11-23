@@ -13,10 +13,14 @@ import android.hardware.Sensor
 import android.hardware.SensorEvent
 import android.hardware.SensorEventListener
 import android.hardware.SensorManager
+import android.media.AudioDeviceInfo
 import android.media.AudioManager
+import android.media.ToneGenerator
 import android.os.Build
 import android.os.IBinder
 import android.os.PowerManager
+import android.os.Handler
+import android.os.Looper
 import android.os.VibrationEffect
 import android.os.Vibrator
 import android.os.VibratorManager
@@ -32,6 +36,13 @@ class MagnetService : Service(), SensorEventListener {
         const val ACTION_TRIGGER_VOICE = "com.example.magnetcontroller.TRIGGER_VOICE"
     }
 
+    private data class CompensatedField(
+        val x: Float,
+        val y: Float,
+        val z: Float,
+        val magnitude: Float
+    )
+
     private lateinit var sensorManager: SensorManager
     private var magnetometer: Sensor? = null
     private lateinit var prefs: AppPreferences
@@ -46,10 +57,28 @@ class MagnetService : Service(), SensorEventListener {
     private var lockedPole: String = "none"
     private var lastActionTime = 0L
     private var wakeLock: PowerManager.WakeLock? = null
+    private var toneGenerator: ToneGenerator? = null
+    private var lastMagSq: Float = 0f
+    private var lastRawMag: Float = 0f
     private var lastUiMag = -1f
     private var lastUiPole = "none"
     private var lastUiStatus = ""
     private var isScreenOn = true
+    private val vibrationHandler = Handler(Looper.getMainLooper())
+    private var vibrationTimeout: Runnable? = null
+    private val staleHandler = Handler(Looper.getMainLooper())
+    private var staleRunnable: Runnable? = null
+    private var forceHighUntil = 0L
+    private var peakMagSinceTrigger = 0f
+    private var releaseDropSince = 0L
+    private val rapidReleaseWindowMs = 150L
+    private var lastSensorEventMs = 0L
+    private var biasX = 0f
+    private var biasY = 0f
+    private var biasZ = 0f
+    private var biasInitialized = false
+    private var stuckHighSince = 0L
+    private var lastBiasLog = 0L
 
     private val actionCooldownMs = 900L
     private var longPressThresholdMs = 1500L
@@ -90,6 +119,7 @@ class MagnetService : Service(), SensorEventListener {
         loadSettings()
         createNotificationChannel()
         initSensor()
+        startStaleMonitor()
 
         val filter = IntentFilter("com.example.magnetcontroller.RELOAD_SETTINGS")
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
@@ -122,7 +152,8 @@ class MagnetService : Service(), SensorEventListener {
         belowEnergySince = 0L
         resetBelowSince = 0L
         if (magnetometer != null) {
-            applySamplingDelay(samplingHighDelayUs)
+            val targetDelay = if (lastMagSq >= energyThresholdSq) samplingHighDelayUs else samplingLowDelayUs
+            applySamplingDelay(targetDelay)
         }
     }
 
@@ -192,7 +223,8 @@ class MagnetService : Service(), SensorEventListener {
 
     private fun updateSamplingRate(magSq: Float, now: Long) {
         if (magnetometer == null) return
-        if (magSq >= energyThresholdSq) {
+
+        if (now < forceHighUntil || magSq >= energyThresholdSq) {
             belowEnergySince = 0L
             if (currentDelayUs != samplingHighDelayUs) {
                 applySamplingDelay(samplingHighDelayUs)
@@ -206,6 +238,59 @@ class MagnetService : Service(), SensorEventListener {
         }
     }
 
+    private fun compensateDrift(
+        rawX: Float,
+        rawY: Float,
+        rawZ: Float,
+        rawMag: Float,
+        now: Long
+    ): CompensatedField {
+        if (!biasInitialized) {
+            biasInitialized = true
+        }
+
+        val deltaMag = abs(rawMag - lastRawMag)
+
+        val calmAlpha = when {
+            triggerStartTime == 0L && rawMag < prefs.thresholdReset * 0.6f -> 0.08f
+            triggerStartTime == 0L && rawMag < prefs.thresholdTrigger * 0.55f -> 0.04f
+            else -> 0f
+        }
+        if (calmAlpha > 0f) {
+            biasX = lerp(biasX, rawX, calmAlpha)
+            biasY = lerp(biasY, rawY, calmAlpha)
+            biasZ = lerp(biasZ, rawZ, calmAlpha)
+        }
+
+        val stuckMagThreshold = prefs.thresholdTrigger * 0.9f
+        val stuckDelta = 0.8f
+        val allowBleedDuringTrigger = triggerStartTime == 0L || now - triggerStartTime > 220L
+        if (allowBleedDuringTrigger && rawMag > stuckMagThreshold && deltaMag < stuckDelta) {
+            if (stuckHighSince == 0L) stuckHighSince = now
+            if (now - stuckHighSince > 320L) {
+                biasX = lerp(biasX, rawX, 0.18f)
+                biasY = lerp(biasY, rawY, 0.18f)
+                biasZ = lerp(biasZ, rawZ, 0.18f)
+
+                if (now - lastBiasLog > 1500L) {
+                    logToUI("⚠️ 磁力计疑似被强磁拉偏，已自动校准基线")
+                    lastBiasLog = now
+                }
+            }
+        } else {
+            stuckHighSince = 0L
+        }
+
+        val compensatedX = rawX - biasX
+        val compensatedY = rawY - biasY
+        val compensatedZ = rawZ - biasZ
+        val compensatedMag = sqrt(
+            compensatedX * compensatedX + compensatedY * compensatedY + compensatedZ * compensatedZ
+        )
+
+        return CompensatedField(compensatedX, compensatedY, compensatedZ, compensatedMag)
+    }
+
     override fun onBind(intent: Intent?): IBinder? = null
 
     override fun onDestroy() {
@@ -214,19 +299,28 @@ class MagnetService : Service(), SensorEventListener {
         unregisterReceiver(settingsReceiver)
         unregisterReceiver(screenReceiver)
         stopVibration()
+        stopStaleMonitor()
+        toneGenerator?.release()
+        toneGenerator = null
     }
 
     override fun onSensorChanged(event: SensorEvent?) {
         if (event?.sensor?.type != Sensor.TYPE_MAGNETIC_FIELD) return
 
         val now = System.currentTimeMillis()
-        val x = event.values[0]
-        val y = event.values[1]
-        val z = event.values[2]
-        val magSq = x * x + y * y + z * z
-        val magnitude = sqrt(magSq.toDouble()).toFloat()
+        val rawX = event.values[0]
+        val rawY = event.values[1]
+        val rawZ = event.values[2]
+        val rawMagSq = rawX * rawX + rawY * rawY + rawZ * rawZ
+        val rawMag = sqrt(rawMagSq.toDouble()).toFloat()
 
-        updateSamplingRate(magSq, now)
+        val (x, y, z, magnitude) = compensateDrift(rawX, rawY, rawZ, rawMag, now)
+
+        lastMagSq = magnitude * magnitude
+        lastRawMag = rawMag
+        lastSensorEventMs = now
+
+        updateSamplingRate(lastMagSq, now)
 
         val candidate = if (x >= z) "N" else "S"
 
@@ -248,34 +342,27 @@ class MagnetService : Service(), SensorEventListener {
 
         val poleForUi = if (lockedPole != "none") lockedPole else stablePole
 
-        sendBroadcastToUI(x, y, z, magnitude, poleForUi)
+        sendBroadcastToUI(x, y, z, magnitude, poleForUi, now)
         processLogic(magnitude, z, now, poleForUi)
     }
 
-    private fun sendBroadcastToUI(x: Float, y: Float, z: Float, mag: Float, pole: String) {
+    private fun sendBroadcastToUI(x: Float, y: Float, z: Float, mag: Float, pole: String, now: Long) {
         val status = getStatusText()
-        val poleChanged = pole != lastUiPole
-        val statusChanged = status != lastUiStatus
-        val magChanged = abs(mag - lastUiMag) > 5f
-        val isFirst = lastUiMag < 0f
-
         if (!isScreenOn) return
 
-        if (isFirst || poleChanged || statusChanged || magChanged) {
-            lastUiMag = mag
-            lastUiPole = pole
-            lastUiStatus = status
+        lastUiMag = mag
+        lastUiPole = pole
+        lastUiStatus = status
 
-            val intent = Intent("com.example.magnetcontroller.UPDATE_UI")
-            intent.putExtra("x", x)
-            intent.putExtra("y", y)
-            intent.putExtra("z", z)
-            intent.putExtra("mag", mag)
-            intent.putExtra("pole", pole)
-            intent.putExtra("status", status)
-            intent.setPackage(packageName)
-            sendBroadcast(intent)
-        }
+        val intent = Intent("com.example.magnetcontroller.UPDATE_UI")
+        intent.putExtra("x", x)
+        intent.putExtra("y", y)
+        intent.putExtra("z", z)
+        intent.putExtra("mag", mag)
+        intent.putExtra("pole", pole)
+        intent.putExtra("status", status)
+        intent.setPackage(packageName)
+        sendBroadcast(intent)
     }
 
     private fun logToUI(message: String) {
@@ -300,13 +387,14 @@ class MagnetService : Service(), SensorEventListener {
 
         val poleInstant = when {
             poleForUi == "N" || poleForUi == "S" -> poleForUi
+            prefs.poleMode == "different" -> "none"
             zValue >= 0 -> "N"
             else -> "S"
         }
 
+        val hasRecognizedPole = poleForUi == "N" || poleForUi == "S" || activePole == "N" || activePole == "S"
         val shouldTrigger = when (prefs.poleMode) {
-            "both" -> true
-            "different" -> true
+            "different" -> hasRecognizedPole
             else -> true
         }
         if (!shouldTrigger) return
@@ -316,10 +404,23 @@ class MagnetService : Service(), SensorEventListener {
             if (triggerStartTime == 0L) {
                 triggerStartTime = now
                 isLongPressTriggered = false
+                peakMagSinceTrigger = magnitude
+                releaseDropSince = 0L
+                forceHighUntil = now + 2000
                 startContinuousVibration()
-                activePole = if (poleForUi == "N" || poleForUi == "S") poleForUi else poleInstant
+                playTriggerChime()
+                activePole = when {
+                    poleForUi == "N" || poleForUi == "S" -> poleForUi
+                    poleInstant == "N" || poleInstant == "S" -> poleInstant
+                    activePole != "none" -> activePole
+                    else -> stablePole
+                }
             } else {
-                if (prefs.poleMode == "different" && (now - triggerStartTime) >= poleChangeAbortMs) {
+                if (
+                    prefs.poleMode == "different" &&
+                    (now - triggerStartTime) >= poleChangeAbortMs &&
+                    (poleInstant == "N" || poleInstant == "S")
+                ) {
                     activePole = poleInstant
                 }
 
@@ -334,20 +435,30 @@ class MagnetService : Service(), SensorEventListener {
                         activePole == "N" || activePole == "S" -> activePole
                         else -> stablePole
                     }
-                    if (prefs.poleMode == "different" && (poleForAction != "N" && poleForAction != "S")) return
+                    if (poleForAction != "N" && poleForAction != "S") return
 
-                    val action = if (prefs.poleMode == "different") {
-                        if (poleForAction == "N") prefs.nLongAction else prefs.sLongAction
-                    } else {
-                        if (poleForAction == "N") prefs.nLongAction else prefs.sLongAction
-                    }
+                    val action = if (poleForAction == "N") prefs.nLongAction else prefs.sLongAction
 
                     performAction(action)
                     isLongPressTriggered = true
                     lastActionTime = now
                 }
+
+                if (magnitude > peakMagSinceTrigger) {
+                    peakMagSinceTrigger = magnitude
+                    releaseDropSince = 0L
+                } else if (peakMagSinceTrigger > 0f && magnitude <= peakMagSinceTrigger * 0.55f) {
+                    if (releaseDropSince == 0L) {
+                        releaseDropSince = now
+                    } else if (now - releaseDropSince >= rapidReleaseWindowMs) {
+                        forceHighUntil = now + 800
+                        if (magnitude < prefs.thresholdTrigger * 0.7f) {
+                            resetBelowSince = now - prefs.thresholdResetDebounceMs
+                        }
+                    }
+                }
             }
-        } else if (magnitude < prefs.thresholdReset) {
+        } else if (shouldRelease(magnitude, now)) {
             if (resetBelowSince == 0L) {
                 resetBelowSince = now
             }
@@ -363,13 +474,9 @@ class MagnetService : Service(), SensorEventListener {
                         activePole == "N" || activePole == "S" -> activePole
                         else -> stablePole
                     }
-                    if (prefs.poleMode == "different" && (poleForAction != "N" && poleForAction != "S")) return
+                    if (poleForAction != "N" && poleForAction != "S") return
 
-                    val action = if (prefs.poleMode == "different") {
-                        if (poleForAction == "N") prefs.nShortAction else prefs.sShortAction
-                    } else {
-                        if (poleForAction == "N") prefs.nShortAction else prefs.sShortAction
-                    }
+                    val action = if (poleForAction == "N") prefs.nShortAction else prefs.sShortAction
 
                     performAction(action)
                     lastActionTime = now
@@ -378,9 +485,109 @@ class MagnetService : Service(), SensorEventListener {
                 triggerStartTime = 0L
                 isLongPressTriggered = false
                 activePole = "none"
+                peakMagSinceTrigger = 0f
+                releaseDropSince = 0L
             }
         } else {
             resetBelowSince = 0L
+        }
+    }
+
+    private fun shouldRelease(magnitude: Float, now: Long): Boolean {
+        val hasRapidDrop = releaseDropSince != 0L && (now - releaseDropSince) >= rapidReleaseWindowMs
+        if (hasRapidDrop && magnitude < prefs.thresholdTrigger * 0.7f) {
+            return true
+        }
+        return magnitude < prefs.thresholdReset
+    }
+
+    private fun startStaleMonitor() {
+        staleRunnable = Runnable {
+            val now = System.currentTimeMillis()
+            val staleThreshold = if (triggerStartTime != 0L) 220L else 700L
+            val sinceLast = now - lastSensorEventMs
+
+            if (lastSensorEventMs != 0L && sinceLast > staleThreshold) {
+                refreshSensorListener()
+
+                if (triggerStartTime != 0L) {
+                    logToUI("⚠️ 传感器数据暂停，已保护性复位")
+                    forceReleaseFallback(now)
+                }
+            }
+
+            staleHandler.postDelayed(staleRunnable!!, 180L)
+        }.also { staleHandler.postDelayed(it, 180L) }
+    }
+
+    private fun stopStaleMonitor() {
+        staleRunnable?.let { staleHandler.removeCallbacks(it) }
+        staleRunnable = null
+    }
+
+    private fun refreshSensorListener() {
+        magnetometer?.let {
+            sensorManager.unregisterListener(this, it)
+            currentDelayUs = 0
+            sensorManager.registerListener(this, it, samplingHighDelayUs, samplingHighDelayUs)
+            currentDelayUs = samplingHighDelayUs
+            forceHighUntil = System.currentTimeMillis() + 1200
+        }
+    }
+
+    private fun forceReleaseFallback(now: Long) {
+        stopVibration()
+
+        if (triggerStartTime != 0L && !isLongPressTriggered) {
+            val poleForAction = when {
+                activePole == "N" || activePole == "S" -> activePole
+                stablePole == "N" || stablePole == "S" -> stablePole
+                else -> "none"
+            }
+
+            if (poleForAction == "N" || poleForAction == "S") {
+                val action = if (poleForAction == "N") prefs.nShortAction else prefs.sShortAction
+                performAction(action)
+                lastActionTime = now
+            }
+        }
+
+        triggerStartTime = 0L
+        isLongPressTriggered = false
+        activePole = "none"
+        peakMagSinceTrigger = 0f
+        releaseDropSince = 0L
+    }
+
+    private fun playTriggerChime() {
+        try {
+            if (!isBluetoothAudioActive()) {
+                logToUI("⚠️ 未检测到蓝牙耳机，已跳过提示音")
+                return
+            }
+
+            val audioManager = getSystemService(Context.AUDIO_SERVICE) as AudioManager
+            audioManager.isSpeakerphoneOn = false
+
+            if (toneGenerator == null) {
+                toneGenerator = ToneGenerator(AudioManager.STREAM_MUSIC, 100)
+            }
+            toneGenerator?.startTone(ToneGenerator.TONE_PROP_BEEP2, 160)
+        } catch (e: Exception) {
+            logToUI("⚠️ 提示音播放失败: ${e.message}")
+        }
+    }
+
+    private fun isBluetoothAudioActive(): Boolean {
+        val audioManager = getSystemService(Context.AUDIO_SERVICE) as AudioManager
+        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            audioManager.getDevices(AudioManager.GET_DEVICES_OUTPUTS).any { device ->
+                device.type == AudioDeviceInfo.TYPE_BLUETOOTH_A2DP ||
+                    device.type == AudioDeviceInfo.TYPE_BLUETOOTH_SCO
+            }
+        } else {
+            @Suppress("DEPRECATION")
+            audioManager.isBluetoothA2dpOn || audioManager.isBluetoothScoOn
         }
     }
 
@@ -388,11 +595,20 @@ class MagnetService : Service(), SensorEventListener {
         if (isContinuousVibrating) return
         val vibrator = getVibrator()
         if (vibrator.hasVibrator()) {
+            val fallbackDuration = (longPressThresholdMs + 400L).coerceIn(800L, 4000L)
+            vibrationTimeout?.let { vibrationHandler.removeCallbacks(it) }
+            vibrationTimeout = Runnable {
+                stopVibration()
+                logToUI("ℹ️ 震动已自动停止，防止误触持续反馈")
+            }.also { vibrationHandler.postDelayed(it, fallbackDuration) }
+
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                vibrator.vibrate(VibrationEffect.createOneShot(5000, VibrationEffect.DEFAULT_AMPLITUDE))
+                vibrator.vibrate(
+                    VibrationEffect.createOneShot(fallbackDuration, VibrationEffect.DEFAULT_AMPLITUDE)
+                )
             } else {
                 @Suppress("DEPRECATION")
-                vibrator.vibrate(5000)
+                vibrator.vibrate(fallbackDuration)
             }
             isContinuousVibrating = true
         }
@@ -401,6 +617,8 @@ class MagnetService : Service(), SensorEventListener {
     private fun stopVibration() {
         if (isContinuousVibrating) {
             getVibrator().cancel()
+            vibrationTimeout?.let { vibrationHandler.removeCallbacks(it) }
+            vibrationTimeout = null
             isContinuousVibrating = false
         }
     }
@@ -446,22 +664,6 @@ class MagnetService : Service(), SensorEventListener {
         releaseWakeLock()
     }
 
-    private fun tryPlayPauseLongPress(): Boolean {
-        return try {
-            val audioManager = getSystemService(Context.AUDIO_SERVICE) as AudioManager
-            val eventTime = System.currentTimeMillis()
-            val keyEventDown = KeyEvent(eventTime, eventTime, KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE, 0)
-            val keyEventUp = KeyEvent(eventTime + 1100, eventTime + 1100, KeyEvent.ACTION_UP, KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE, 0)
-            audioManager.dispatchMediaKeyEvent(keyEventDown)
-            Thread.sleep(1100)
-            audioManager.dispatchMediaKeyEvent(keyEventUp)
-            true
-        } catch (e: Exception) {
-            logToUI("⚠️ 媒体键长按失败 ${e.message}")
-            false
-        }
-    }
-
     private fun tryVoiceCommandGeneric(): Boolean {
         return try {
             val intent = Intent(Intent.ACTION_VOICE_COMMAND).apply {
@@ -496,6 +698,7 @@ class MagnetService : Service(), SensorEventListener {
             wakeLock = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "MagnetService:Voice").apply {
                 setReferenceCounted(false)
                 acquire(durationMs)
+                logToUI("⚡ 已获取唤醒锁，保持 ${durationMs}ms")
             }
         } catch (e: SecurityException) {
             logToUI("⚠️ 获取唤醒锁失败：缺少 WAKE_LOCK 权限或被限制")
@@ -549,6 +752,10 @@ class MagnetService : Service(), SensorEventListener {
         } catch (e: Exception) {
             logToUI("⚠️ 音量调整失败: ${e.message}")
         }
+    }
+
+    private fun lerp(current: Float, target: Float, alpha: Float): Float {
+        return current + (target - current) * alpha
     }
 
     private fun getVibrator(): Vibrator {
