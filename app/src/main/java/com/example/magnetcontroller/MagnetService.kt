@@ -58,6 +58,10 @@ class MagnetService : Service(), SensorEventListener {
     private var isScreenOn = true
     private val vibrationHandler = Handler(Looper.getMainLooper())
     private var vibrationTimeout: Runnable? = null
+    private var forceHighUntil = 0L
+    private var peakMagSinceTrigger = 0f
+    private var releaseDropSince = 0L
+    private val rapidReleaseWindowMs = 150L
 
     private val actionCooldownMs = 900L
     private var longPressThresholdMs = 1500L
@@ -201,7 +205,8 @@ class MagnetService : Service(), SensorEventListener {
 
     private fun updateSamplingRate(magSq: Float, now: Long) {
         if (magnetometer == null) return
-        if (magSq >= energyThresholdSq) {
+
+        if (now < forceHighUntil || magSq >= energyThresholdSq) {
             belowEnergySince = 0L
             if (currentDelayUs != samplingHighDelayUs) {
                 applySamplingDelay(samplingHighDelayUs)
@@ -330,6 +335,9 @@ class MagnetService : Service(), SensorEventListener {
             if (triggerStartTime == 0L) {
                 triggerStartTime = now
                 isLongPressTriggered = false
+                peakMagSinceTrigger = magnitude
+                releaseDropSince = 0L
+                forceHighUntil = now + 2000
                 startContinuousVibration()
                 playTriggerChime()
                 activePole = when {
@@ -366,8 +374,22 @@ class MagnetService : Service(), SensorEventListener {
                     isLongPressTriggered = true
                     lastActionTime = now
                 }
+
+                if (magnitude > peakMagSinceTrigger) {
+                    peakMagSinceTrigger = magnitude
+                    releaseDropSince = 0L
+                } else if (peakMagSinceTrigger > 0f && magnitude <= peakMagSinceTrigger * 0.55f) {
+                    if (releaseDropSince == 0L) {
+                        releaseDropSince = now
+                    } else if (now - releaseDropSince >= rapidReleaseWindowMs) {
+                        forceHighUntil = now + 800
+                        if (magnitude < prefs.thresholdTrigger * 0.7f) {
+                            resetBelowSince = now - prefs.thresholdResetDebounceMs
+                        }
+                    }
+                }
             }
-        } else if (magnitude < prefs.thresholdReset) {
+        } else if (shouldRelease(magnitude, now)) {
             if (resetBelowSince == 0L) {
                 resetBelowSince = now
             }
@@ -394,10 +416,20 @@ class MagnetService : Service(), SensorEventListener {
                 triggerStartTime = 0L
                 isLongPressTriggered = false
                 activePole = "none"
+                peakMagSinceTrigger = 0f
+                releaseDropSince = 0L
             }
         } else {
             resetBelowSince = 0L
         }
+    }
+
+    private fun shouldRelease(magnitude: Float, now: Long): Boolean {
+        val hasRapidDrop = releaseDropSince != 0L && (now - releaseDropSince) >= rapidReleaseWindowMs
+        if (hasRapidDrop && magnitude < prefs.thresholdTrigger * 0.7f) {
+            return true
+        }
+        return magnitude < prefs.thresholdReset
     }
 
     private fun playTriggerChime() {
