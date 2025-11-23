@@ -21,6 +21,8 @@ import android.os.Handler as AndroidHandler
 import android.os.IBinder
 import android.os.Looper as AndroidLooper
 import android.os.PowerManager
+import android.os.Handler
+import android.os.Looper
 import android.os.VibrationEffect
 import android.os.Vibrator
 import android.os.VibratorManager
@@ -576,6 +578,10 @@ class MagnetService : Service(), SensorEventListener {
         } catch (e: Exception) {
             logToUI("⚠️ 音量调整失败: ${e.message}")
         }
+    }
+
+    private fun lerp(current: Float, target: Float, alpha: Float): Float {
+        return current + (target - current) * alpha
     }
 
     private fun getVibrator(): Vibrator {
