@@ -13,6 +13,7 @@ import android.hardware.Sensor
 import android.hardware.SensorEvent
 import android.hardware.SensorEventListener
 import android.hardware.SensorManager
+import android.media.AudioDeviceInfo
 import android.media.AudioManager
 import android.media.ToneGenerator
 import android.os.Build
@@ -397,12 +398,33 @@ class MagnetService : Service(), SensorEventListener {
 
     private fun playTriggerChime() {
         try {
+            if (!isBluetoothAudioActive()) {
+                logToUI("⚠️ 未检测到蓝牙耳机，已跳过提示音")
+                return
+            }
+
+            val audioManager = getSystemService(Context.AUDIO_SERVICE) as AudioManager
+            audioManager.isSpeakerphoneOn = false
+
             if (toneGenerator == null) {
-                toneGenerator = ToneGenerator(AudioManager.STREAM_ALARM, 100)
+                toneGenerator = ToneGenerator(AudioManager.STREAM_MUSIC, 100)
             }
             toneGenerator?.startTone(ToneGenerator.TONE_PROP_BEEP2, 160)
         } catch (e: Exception) {
             logToUI("⚠️ 提示音播放失败: ${e.message}")
+        }
+    }
+
+    private fun isBluetoothAudioActive(): Boolean {
+        val audioManager = getSystemService(Context.AUDIO_SERVICE) as AudioManager
+        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            audioManager.getDevices(AudioManager.GET_DEVICES_OUTPUTS).any { device ->
+                device.type == AudioDeviceInfo.TYPE_BLUETOOTH_A2DP ||
+                    device.type == AudioDeviceInfo.TYPE_BLUETOOTH_SCO
+            }
+        } else {
+            @Suppress("DEPRECATION")
+            audioManager.isBluetoothA2dpOn || audioManager.isBluetoothScoOn
         }
     }
 
