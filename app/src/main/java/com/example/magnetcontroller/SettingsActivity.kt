@@ -2,11 +2,23 @@ package com.example.magnetcontroller
 
 import android.content.Intent
 import android.os.Bundle
-import android.widget.RadioButton
+import android.widget.ArrayAdapter
 import androidx.appcompat.app.AppCompatActivity
 import com.example.magnetcontroller.databinding.ActivitySettingsBinding
+import com.google.android.material.textfield.MaterialAutoCompleteTextView
 
 class SettingsActivity : AppCompatActivity() {
+
+    private data class ActionOption(val key: String, val label: String)
+
+    private val actionOptions = listOf(
+        ActionOption("play_pause", "播放/暂停"),
+        ActionOption("voice", "语音助手"),
+        ActionOption("previous", "上一曲"),
+        ActionOption("next", "下一曲"),
+        ActionOption("volume_down", "音量 -"),
+        ActionOption("volume_up", "音量 +"),
+    )
 
     private lateinit var binding: ActivitySettingsBinding
     private lateinit var prefs: AppPreferences
@@ -39,10 +51,10 @@ class SettingsActivity : AppCompatActivity() {
             else -> binding.rbBothPoles.isChecked = true
         }
 
-        selectActionRadio(prefs.nShortAction, actionMapForNShort())
-        selectActionRadio(prefs.nLongAction, actionMapForNLong())
-        selectActionRadio(prefs.sShortAction, actionMapForSShort())
-        selectActionRadio(prefs.sLongAction, actionMapForSLong())
+        setupActionDropdown(binding.menuNShort, prefs.nShortAction)
+        setupActionDropdown(binding.menuNLong, prefs.nLongAction)
+        setupActionDropdown(binding.menuSShort, prefs.sShortAction)
+        setupActionDropdown(binding.menuSLong, prefs.sLongAction)
     }
 
     private fun setupListeners() {
@@ -64,10 +76,10 @@ class SettingsActivity : AppCompatActivity() {
 
         prefs.poleMode = if (binding.rbDifferent.isChecked) "different" else "both"
 
-        prefs.nShortAction = readSelectedAction(actionMapForNShort())
-        prefs.nLongAction = readSelectedAction(actionMapForNLong())
-        prefs.sShortAction = readSelectedAction(actionMapForSShort())
-        prefs.sLongAction = readSelectedAction(actionMapForSLong())
+        prefs.nShortAction = readSelectedAction(binding.menuNShort)
+        prefs.nLongAction = readSelectedAction(binding.menuNLong)
+        prefs.sShortAction = readSelectedAction(binding.menuSShort)
+        prefs.sLongAction = readSelectedAction(binding.menuSLong)
 
         val intent = Intent("com.example.magnetcontroller.RELOAD_SETTINGS").apply {
             setPackage(packageName)
@@ -77,52 +89,20 @@ class SettingsActivity : AppCompatActivity() {
         finish()
     }
 
-    private fun selectActionRadio(action: String, mapping: Map<String, RadioButton>) {
-        val normalized = if (action == "media") "play_pause" else action
-        val targetKey = if (mapping.containsKey(normalized)) normalized else "play_pause"
-        mapping[targetKey]?.isChecked = true
+    private fun setupActionDropdown(view: MaterialAutoCompleteTextView, actionKey: String) {
+        val adapter = ArrayAdapter(this, android.R.layout.simple_list_item_1, actionOptions.map { it.label })
+        view.setAdapter(adapter)
+
+        val normalized = normalizeActionKey(actionKey)
+        val selected = actionOptions.find { it.key == normalized } ?: actionOptions.first()
+        view.setText(selected.label, false)
     }
 
-    private fun readSelectedAction(mapping: Map<String, RadioButton>): String {
-        mapping.forEach { (key, button) ->
-            if (button.isChecked) return key
-        }
-        return "play_pause"
+    private fun readSelectedAction(view: MaterialAutoCompleteTextView): String {
+        val label = view.text?.toString()?.trim() ?: ""
+        val selected = actionOptions.find { it.label == label } ?: actionOptions.first()
+        return selected.key
     }
 
-    private fun actionMapForNShort() = mapOf(
-        "play_pause" to binding.rbNShortMedia,
-        "voice" to binding.rbNShortVoice,
-        "previous" to binding.rbNShortPrev,
-        "next" to binding.rbNShortNext,
-        "volume_down" to binding.rbNShortVolDown,
-        "volume_up" to binding.rbNShortVolUp,
-    )
-
-    private fun actionMapForNLong() = mapOf(
-        "play_pause" to binding.rbNLongMedia,
-        "voice" to binding.rbNLongVoice,
-        "previous" to binding.rbNLongPrev,
-        "next" to binding.rbNLongNext,
-        "volume_down" to binding.rbNLongVolDown,
-        "volume_up" to binding.rbNLongVolUp,
-    )
-
-    private fun actionMapForSShort() = mapOf(
-        "play_pause" to binding.rbSShortMedia,
-        "voice" to binding.rbSShortVoice,
-        "previous" to binding.rbSShortPrev,
-        "next" to binding.rbSShortNext,
-        "volume_down" to binding.rbSShortVolDown,
-        "volume_up" to binding.rbSShortVolUp,
-    )
-
-    private fun actionMapForSLong() = mapOf(
-        "play_pause" to binding.rbSLongMedia,
-        "voice" to binding.rbSLongVoice,
-        "previous" to binding.rbSLongPrev,
-        "next" to binding.rbSLongNext,
-        "volume_down" to binding.rbSLongVolDown,
-        "volume_up" to binding.rbSLongVolUp,
-    )
+    private fun normalizeActionKey(action: String) = if (action == "media") "play_pause" else action
 }

@@ -340,217 +340,65 @@
                 <TextView
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:text="短按用来切歌/暂停，长按可唤醒语音助手或调节音量。"
+                    android:text="短按用来切歌/暂停，长按可唤醒语音助手或调节音量。下拉快速选择，不再需要滚动一长排按钮。"
                     android:textColor="#5F6A84"
                     android:textSize="13sp"
                     android:layout_marginBottom="12dp" />
 
-                <TextView
+                <com.google.android.material.textfield.TextInputLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:text="N 极短按"
-                    android:textStyle="bold"
-                    android:textColor="@color/alpine_navy"
-                    android:layout_marginBottom="4dp" />
+                    android:hint="N 极短按"
+                    app:endIconMode="dropdown">
 
-                <RadioGroup
-                    android:id="@+id/rgNShort"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content">
-
-                    <RadioButton
-                        android:id="@+id/rbNShortMedia"
+                    <com.google.android.material.textfield.MaterialAutoCompleteTextView
+                        android:id="@+id/menuNShort"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:text="播放/暂停"
-                        android:checked="true" />
+                        android:inputType="none" />
+                </com.google.android.material.textfield.TextInputLayout>
 
-                    <RadioButton
-                        android:id="@+id/rbNShortVoice"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:text="语音助手" />
-
-                    <RadioButton
-                        android:id="@+id/rbNShortPrev"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:text="上一曲" />
-
-                    <RadioButton
-                        android:id="@+id/rbNShortNext"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:text="下一曲" />
-
-                    <RadioButton
-                        android:id="@+id/rbNShortVolDown"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:text="音量 -" />
-
-                    <RadioButton
-                        android:id="@+id/rbNShortVolUp"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:text="音量 +" />
-                </RadioGroup>
-
-                <TextView
+                <com.google.android.material.textfield.TextInputLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:text="N 极长按"
-                    android:textStyle="bold"
-                    android:textColor="@color/alpine_navy"
+                    android:hint="N 极长按"
                     android:layout_marginTop="10dp"
-                    android:layout_marginBottom="4dp" />
+                    app:endIconMode="dropdown">
 
-                <RadioGroup
-                    android:id="@+id/rgNLong"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content">
-
-                    <RadioButton
-                        android:id="@+id/rbNLongMedia"
+                    <com.google.android.material.textfield.MaterialAutoCompleteTextView
+                        android:id="@+id/menuNLong"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:text="播放/暂停" />
+                        android:inputType="none" />
+                </com.google.android.material.textfield.TextInputLayout>
 
-                    <RadioButton
-                        android:id="@+id/rbNLongVoice"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:text="语音助手"
-                        android:checked="true" />
-
-                    <RadioButton
-                        android:id="@+id/rbNLongPrev"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:text="上一曲" />
-
-                    <RadioButton
-                        android:id="@+id/rbNLongNext"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:text="下一曲" />
-
-                    <RadioButton
-                        android:id="@+id/rbNLongVolDown"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:text="音量 -" />
-
-                    <RadioButton
-                        android:id="@+id/rbNLongVolUp"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:text="音量 +" />
-                </RadioGroup>
-
-                <TextView
+                <com.google.android.material.textfield.TextInputLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:text="S 极短按"
-                    android:textStyle="bold"
-                    android:textColor="@color/alpine_navy"
+                    android:hint="S 极短按"
                     android:layout_marginTop="12dp"
-                    android:layout_marginBottom="4dp" />
+                    app:endIconMode="dropdown">
 
-                <RadioGroup
-                    android:id="@+id/rgSShort"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content">
-
-                    <RadioButton
-                        android:id="@+id/rbSShortMedia"
+                    <com.google.android.material.textfield.MaterialAutoCompleteTextView
+                        android:id="@+id/menuSShort"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:text="播放/暂停"
-                        android:checked="true" />
+                        android:inputType="none" />
+                </com.google.android.material.textfield.TextInputLayout>
 
-                    <RadioButton
-                        android:id="@+id/rbSShortVoice"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:text="语音助手" />
-
-                    <RadioButton
-                        android:id="@+id/rbSShortPrev"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:text="上一曲" />
-
-                    <RadioButton
-                        android:id="@+id/rbSShortNext"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:text="下一曲" />
-
-                    <RadioButton
-                        android:id="@+id/rbSShortVolDown"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:text="音量 -" />
-
-                    <RadioButton
-                        android:id="@+id/rbSShortVolUp"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:text="音量 +" />
-                </RadioGroup>
-
-                <TextView
+                <com.google.android.material.textfield.TextInputLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:text="S 极长按"
-                    android:textStyle="bold"
-                    android:textColor="@color/alpine_navy"
+                    android:hint="S 极长按"
                     android:layout_marginTop="10dp"
-                    android:layout_marginBottom="4dp" />
+                    app:endIconMode="dropdown">
 
-                <RadioGroup
-                    android:id="@+id/rgSLong"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content">
-
-                    <RadioButton
-                        android:id="@+id/rbSLongMedia"
+                    <com.google.android.material.textfield.MaterialAutoCompleteTextView
+                        android:id="@+id/menuSLong"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:text="播放/暂停" />
-
-                    <RadioButton
-                        android:id="@+id/rbSLongVoice"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:text="语音助手"
-                        android:checked="true" />
-
-                    <RadioButton
-                        android:id="@+id/rbSLongPrev"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:text="上一曲" />
-
-                    <RadioButton
-                        android:id="@+id/rbSLongNext"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:text="下一曲" />
-
-                    <RadioButton
-                        android:id="@+id/rbSLongVolDown"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:text="音量 -" />
-
-                    <RadioButton
-                        android:id="@+id/rbSLongVolUp"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:text="音量 +" />
-                </RadioGroup>
+                        android:inputType="none" />
+                </com.google.android.material.textfield.TextInputLayout>
             </LinearLayout>
         </com.google.android.material.card.MaterialCardView>
 

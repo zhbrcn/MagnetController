@@ -14,6 +14,7 @@ import android.hardware.SensorEvent
 import android.hardware.SensorEventListener
 import android.hardware.SensorManager
 import android.media.AudioManager
+import android.media.ToneGenerator
 import android.os.Build
 import android.os.IBinder
 import android.os.PowerManager
@@ -46,6 +47,7 @@ class MagnetService : Service(), SensorEventListener {
     private var lockedPole: String = "none"
     private var lastActionTime = 0L
     private var wakeLock: PowerManager.WakeLock? = null
+    private var toneGenerator: ToneGenerator? = null
     private var lastMagSq: Float = 0f
     private var lastUiMag = -1f
     private var lastUiPole = "none"
@@ -216,6 +218,8 @@ class MagnetService : Service(), SensorEventListener {
         unregisterReceiver(settingsReceiver)
         unregisterReceiver(screenReceiver)
         stopVibration()
+        toneGenerator?.release()
+        toneGenerator = null
     }
 
     override fun onSensorChanged(event: SensorEvent?) {
@@ -322,6 +326,7 @@ class MagnetService : Service(), SensorEventListener {
                 triggerStartTime = now
                 isLongPressTriggered = false
                 startContinuousVibration()
+                playTriggerChime()
                 activePole = when {
                     poleForUi == "N" || poleForUi == "S" -> poleForUi
                     poleInstant == "N" || poleInstant == "S" -> poleInstant
@@ -387,6 +392,17 @@ class MagnetService : Service(), SensorEventListener {
             }
         } else {
             resetBelowSince = 0L
+        }
+    }
+
+    private fun playTriggerChime() {
+        try {
+            if (toneGenerator == null) {
+                toneGenerator = ToneGenerator(AudioManager.STREAM_ALARM, 100)
+            }
+            toneGenerator?.startTone(ToneGenerator.TONE_PROP_BEEP2, 160)
+        } catch (e: Exception) {
+            logToUI("⚠️ 提示音播放失败: ${e.message}")
         }
     }
 
