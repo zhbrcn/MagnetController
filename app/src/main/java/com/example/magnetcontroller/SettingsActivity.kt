@@ -2,14 +2,23 @@ package com.example.magnetcontroller
 
 import android.content.Intent
 import android.os.Bundle
-import android.widget.RadioButton
+import android.widget.ArrayAdapter
 import androidx.appcompat.app.AppCompatActivity
 import com.example.magnetcontroller.databinding.ActivitySettingsBinding
+import java.util.Locale
 
 class SettingsActivity : AppCompatActivity() {
 
     private lateinit var binding: ActivitySettingsBinding
     private lateinit var prefs: AppPreferences
+    private val actionOptions = listOf(
+        "play_pause" to "播放 / 暂停",
+        "next" to "下一曲",
+        "previous" to "上一曲",
+        "voice" to "语音助手",
+        "volume_up" to "音量 +",
+        "volume_down" to "音量 -"
+    )
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -17,6 +26,7 @@ class SettingsActivity : AppCompatActivity() {
         setContentView(binding.root)
 
         prefs = AppPreferences(this)
+        setupActionSpinners()
         loadSettings()
         setupListeners()
     }
@@ -33,16 +43,18 @@ class SettingsActivity : AppCompatActivity() {
         binding.etEnergyHoldMs.setText(prefs.energySaveHoldMs.toString())
         binding.etSamplingHighHz.setText(prefs.samplingHighRateHz.toString())
         binding.etSamplingLowHz.setText(prefs.samplingLowRateHz.toString())
+        binding.etAutoZeroThreshold.setText(prefs.autoZeroThreshold.toString())
+        binding.etAutoZeroSeconds.setText(String.format(Locale.US, "%.1f", prefs.autoZeroDurationMs / 1000f))
 
         when (prefs.poleMode) {
             "different" -> binding.rbDifferent.isChecked = true
             else -> binding.rbBothPoles.isChecked = true
         }
 
-        selectActionRadio(prefs.nShortAction, actionMapForNShort())
-        selectActionRadio(prefs.nLongAction, actionMapForNLong())
-        selectActionRadio(prefs.sShortAction, actionMapForSShort())
-        selectActionRadio(prefs.sLongAction, actionMapForSLong())
+        setSpinnerSelection(binding.spNShort, prefs.nShortAction)
+        setSpinnerSelection(binding.spNLong, prefs.nLongAction)
+        setSpinnerSelection(binding.spSShort, prefs.sShortAction)
+        setSpinnerSelection(binding.spSLong, prefs.sLongAction)
     }
 
     private fun setupListeners() {
@@ -61,13 +73,15 @@ class SettingsActivity : AppCompatActivity() {
         prefs.energySaveHoldMs = binding.etEnergyHoldMs.text.toString().toLongOrNull() ?: 2000L
         prefs.samplingHighRateHz = binding.etSamplingHighHz.text.toString().toFloatOrNull() ?: 50f
         prefs.samplingLowRateHz = binding.etSamplingLowHz.text.toString().toFloatOrNull() ?: 15f
+        prefs.autoZeroThreshold = binding.etAutoZeroThreshold.text.toString().toFloatOrNull() ?: 80f
+        prefs.autoZeroDurationMs = ((binding.etAutoZeroSeconds.text.toString().toFloatOrNull() ?: 4f) * 1000).toLong()
 
         prefs.poleMode = if (binding.rbDifferent.isChecked) "different" else "both"
 
-        prefs.nShortAction = readSelectedAction(actionMapForNShort())
-        prefs.nLongAction = readSelectedAction(actionMapForNLong())
-        prefs.sShortAction = readSelectedAction(actionMapForSShort())
-        prefs.sLongAction = readSelectedAction(actionMapForSLong())
+        prefs.nShortAction = readActionFromSpinner(binding.spNShort)
+        prefs.nLongAction = readActionFromSpinner(binding.spNLong)
+        prefs.sShortAction = readActionFromSpinner(binding.spSShort)
+        prefs.sLongAction = readActionFromSpinner(binding.spSLong)
 
         val intent = Intent("com.example.magnetcontroller.RELOAD_SETTINGS").apply {
             setPackage(packageName)
@@ -77,52 +91,26 @@ class SettingsActivity : AppCompatActivity() {
         finish()
     }
 
-    private fun selectActionRadio(action: String, mapping: Map<String, RadioButton>) {
-        val normalized = if (action == "media") "play_pause" else action
-        val targetKey = if (mapping.containsKey(normalized)) normalized else "play_pause"
-        mapping[targetKey]?.isChecked = true
-    }
+    private fun setupActionSpinners() {
+        val adapter = ArrayAdapter(
+            this,
+            android.R.layout.simple_spinner_item,
+            actionOptions.map { it.second }
+        ).also { it.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item) }
 
-    private fun readSelectedAction(mapping: Map<String, RadioButton>): String {
-        mapping.forEach { (key, button) ->
-            if (button.isChecked) return key
+        listOf(binding.spNShort, binding.spNLong, binding.spSShort, binding.spSLong).forEach {
+            it.adapter = adapter
         }
-        return "play_pause"
     }
 
-    private fun actionMapForNShort() = mapOf(
-        "play_pause" to binding.rbNShortMedia,
-        "voice" to binding.rbNShortVoice,
-        "previous" to binding.rbNShortPrev,
-        "next" to binding.rbNShortNext,
-        "volume_down" to binding.rbNShortVolDown,
-        "volume_up" to binding.rbNShortVolUp,
-    )
+    private fun setSpinnerSelection(spinner: android.widget.Spinner, action: String) {
+        val normalized = if (action == "media") "play_pause" else action
+        val index = actionOptions.indexOfFirst { it.first == normalized }.takeIf { it >= 0 } ?: 0
+        spinner.setSelection(index)
+    }
 
-    private fun actionMapForNLong() = mapOf(
-        "play_pause" to binding.rbNLongMedia,
-        "voice" to binding.rbNLongVoice,
-        "previous" to binding.rbNLongPrev,
-        "next" to binding.rbNLongNext,
-        "volume_down" to binding.rbNLongVolDown,
-        "volume_up" to binding.rbNLongVolUp,
-    )
-
-    private fun actionMapForSShort() = mapOf(
-        "play_pause" to binding.rbSShortMedia,
-        "voice" to binding.rbSShortVoice,
-        "previous" to binding.rbSShortPrev,
-        "next" to binding.rbSShortNext,
-        "volume_down" to binding.rbSShortVolDown,
-        "volume_up" to binding.rbSShortVolUp,
-    )
-
-    private fun actionMapForSLong() = mapOf(
-        "play_pause" to binding.rbSLongMedia,
-        "voice" to binding.rbSLongVoice,
-        "previous" to binding.rbSLongPrev,
-        "next" to binding.rbSLongNext,
-        "volume_down" to binding.rbSLongVolDown,
-        "volume_up" to binding.rbSLongVolUp,
-    )
+    private fun readActionFromSpinner(spinner: android.widget.Spinner): String {
+        val position = spinner.selectedItemPosition
+        return actionOptions.getOrNull(position)?.first ?: "play_pause"
+    }
 }
