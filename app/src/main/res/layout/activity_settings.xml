@@ -2,424 +2,514 @@
 <ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:padding="16dp">
+    android:background="#F7F7F7">
 
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:orientation="vertical">
+        android:orientation="vertical"
+        android:padding="20dp">
 
         <TextView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="磁力触发设置"
+            android:text="后台调校"
             android:textSize="24sp"
             android:textStyle="bold"
-            android:layout_marginBottom="24dp" />
+            android:paddingBottom="4dp" />
 
         <TextView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="触发阈值 (μT) - 磁铁靠近达到此强度开始计时"
-            android:textSize="16sp"
-            android:textStyle="bold" />
+            android:text="滑雪佩手套时用磁铁控制耳机，保持简洁。数值均为直输，单位已标注。"
+            android:textColor="#666"
+            android:textSize="13sp"
+            android:paddingBottom="16dp" />
 
-        <EditText
-            android:id="@+id/etThresholdTrigger"
+        <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:inputType="numberDecimal"
-            android:hint="例：500"
-            android:layout_marginBottom="12dp" />
+            android:orientation="vertical"
+            android:padding="16dp"
+            android:background="#FFFFFF"
+            android:elevation="2dp"
+            android:layout_marginBottom="16dp"
+            android:clipToPadding="false"
+            android:clipChildren="false"
+            android:paddingBottom="20dp"
+            android:layout_marginTop="4dp"
+            android:layout_marginStart="2dp"
+            android:layout_marginEnd="2dp"
+            android:backgroundTint="#FFFFFF"
+            android:translationZ="1dp"
+            android:stateListAnimator="@null">
 
-        <TextView
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="恢复阈值 (μT) - 磁铁离开低于此值判定松开"
-            android:textSize="16sp"
-            android:textStyle="bold" />
-
-        <EditText
-            android:id="@+id/etThresholdReset"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:inputType="numberDecimal"
-            android:hint="例：300"
-            android:layout_marginBottom="12dp" />
-
-        <TextView
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="恢复防抖 (ms) - 低于恢复阈值需持续多久才算松开"
-            android:textSize="16sp"
-            android:textStyle="bold" />
-
-        <EditText
-            android:id="@+id/etResetDebounce"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:inputType="number"
-            android:hint="例：80"
-            android:layout_marginBottom="12dp" />
-
-        <TextView
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="长按时长 (ms) - 超过此时间触发长按"
-            android:textSize="16sp"
-            android:textStyle="bold" />
-
-        <EditText
-            android:id="@+id/etLongPressMs"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:inputType="number"
-            android:hint="例：1500"
-            android:layout_marginBottom="12dp" />
-
-        <TextView
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="极性识别最小值 (μT) - 低于此值不锁定极性"
-            android:textSize="16sp"
-            android:textStyle="bold" />
-
-        <EditText
-            android:id="@+id/etPolarityMin"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:inputType="numberDecimal"
-            android:hint="例：50"
-            android:layout_marginBottom="8dp" />
-
-        <TextView
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="极性识别最大值 (μT) - 高于此值锁定极性"
-            android:textSize="16sp"
-            android:textStyle="bold" />
-
-        <EditText
-            android:id="@+id/etPolarityMax"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:inputType="numberDecimal"
-            android:hint="例：2000"
-            android:layout_marginBottom="8dp" />
-
-        <TextView
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="极性防抖时间 (ms) - 极性稳定判定时间"
-            android:textSize="16sp"
-            android:textStyle="bold" />
-
-        <EditText
-            android:id="@+id/etPolarityDebounce"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:inputType="number"
-            android:hint="例：50"
-            android:layout_marginBottom="12dp" />
-
-        <TextView
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="节能阈值 (μT) - 连续低于此值视为远离，降采样"
-            android:textSize="16sp"
-            android:textStyle="bold" />
-
-        <EditText
-            android:id="@+id/etEnergyThreshold"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:inputType="numberDecimal"
-            android:hint="例：100"
-            android:layout_marginBottom="8dp" />
-
-        <TextView
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="节能切换延时 (ms) - 低于阈值累计多久后降采样"
-            android:textSize="16sp"
-            android:textStyle="bold" />
-
-        <EditText
-            android:id="@+id/etEnergyHoldMs"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:inputType="number"
-            android:hint="例：2000"
-            android:layout_marginBottom="8dp" />
-
-        <TextView
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="高采样频率 (Hz) - 接近磁铁时使用"
-            android:textSize="16sp"
-            android:textStyle="bold" />
-
-        <EditText
-            android:id="@+id/etSamplingHighHz"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:inputType="numberDecimal"
-            android:hint="例：50"
-            android:layout_marginBottom="8dp" />
-
-        <TextView
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="低采样频率 (Hz) - 远离磁铁时使用"
-            android:textSize="16sp"
-            android:textStyle="bold" />
-
-        <EditText
-            android:id="@+id/etSamplingLowHz"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:inputType="numberDecimal"
-            android:hint="例：15"
-            android:layout_marginBottom="16dp" />
-
-        <TextView
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="磁极检测模式"
-            android:textSize="16sp"
-            android:textStyle="bold"
-            android:layout_marginTop="8dp" />
-
-        <RadioGroup
-            android:id="@+id/rgPoleMode"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content">
-
-            <RadioButton
-                android:id="@+id/rbBothPoles"
+            <TextView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:text="所有磁极（N/S 都触发）"
-                android:checked="true" />
+                android:text="磁场阈值"
+                android:textStyle="bold"
+                android:textSize="16sp"
+                android:textColor="#111827" />
 
-            <RadioButton
-                android:id="@+id/rbDifferent"
+            <TextView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:text="区分磁极（N/S 可配置不同动作）" />
-        </RadioGroup>
+                android:text="超过触发值开始计时，回落到恢复值并持续防抖时间才视为松开。单位：μT、ms"
+                android:textColor="#666"
+                android:textSize="13sp"
+                android:paddingBottom="10dp" />
 
-        <TextView
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="触发阈值 (μT)"
+                android:textColor="#374151"
+                android:textSize="14sp" />
+
+            <EditText
+                android:id="@+id/etThresholdTrigger"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:inputType="numberDecimal"
+                android:hint="例如：600"
+                android:layout_marginBottom="8dp" />
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="恢复阈值 (μT)"
+                android:textColor="#374151"
+                android:textSize="14sp" />
+
+            <EditText
+                android:id="@+id/etThresholdReset"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:inputType="numberDecimal"
+                android:hint="例如：300"
+                android:layout_marginBottom="8dp" />
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="恢复防抖 (ms)"
+                android:textColor="#374151"
+                android:textSize="14sp" />
+
+            <EditText
+                android:id="@+id/etResetDebounce"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:inputType="number"
+                android:hint="例如：80"
+                android:layout_marginBottom="12dp" />
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="长按判定 (ms)"
+                android:textColor="#374151"
+                android:textSize="14sp" />
+
+            <EditText
+                android:id="@+id/etLongPressMs"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:inputType="number"
+                android:hint="例如：1500"
+                android:layout_marginBottom="12dp" />
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="极性识别最小值 (μT)"
+                android:textColor="#374151"
+                android:textSize="14sp" />
+
+            <EditText
+                android:id="@+id/etPolarityMin"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:inputType="numberDecimal"
+                android:hint="例如：50"
+                android:layout_marginBottom="8dp" />
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="极性锁定最大值 (μT)"
+                android:textColor="#374151"
+                android:textSize="14sp" />
+
+            <EditText
+                android:id="@+id/etPolarityMax"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:inputType="numberDecimal"
+                android:hint="例如：600 或 1200"
+                android:layout_marginBottom="12dp" />
+        </LinearLayout>
+
+        <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="N 极短按动作"
-            android:textSize="16sp"
-            android:textStyle="bold"
-            android:layout_marginTop="16dp" />
+            android:orientation="vertical"
+            android:padding="16dp"
+            android:background="#FFFFFF"
+            android:elevation="2dp"
+            android:layout_marginBottom="16dp"
+            android:paddingBottom="20dp"
+            android:clipToPadding="false"
+            android:clipChildren="false"
+            android:stateListAnimator="@null"
+            android:translationZ="1dp">
 
-        <RadioGroup
-            android:id="@+id/rgNShort"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content">
-
-            <RadioButton
-                android:id="@+id/rbNShortMedia"
+            <TextView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:text="播放/暂停"
-                android:checked="true" />
+                android:text="自动归零"
+                android:textStyle="bold"
+                android:textSize="16sp" />
 
-            <RadioButton
-                android:id="@+id/rbNShortVoice"
+            <TextView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:text="语音助手" />
+                android:text="磁场持续偏弱时自动重置零点，滑雪途中口袋里不再漂移。"
+                android:textColor="#666"
+                android:textSize="13sp"
+                android:paddingBottom="10dp" />
 
-            <RadioButton
-                android:id="@+id/rbNShortPrev"
+            <TextView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:text="上一曲" />
+                android:text="低磁场阈值 (μT)"
+                android:textColor="#374151"
+                android:textSize="14sp" />
 
-            <RadioButton
-                android:id="@+id/rbNShortNext"
+            <EditText
+                android:id="@+id/etAutoZeroThreshold"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:text="下一曲" />
+                android:inputType="numberDecimal"
+                android:hint="例如：80.0"
+                android:layout_marginBottom="8dp" />
 
-            <RadioButton
-                android:id="@+id/rbNShortVolDown"
+            <TextView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:text="音量 -" />
+                android:text="持续时间 (秒)"
+                android:textColor="#374151"
+                android:textSize="14sp" />
 
-            <RadioButton
-                android:id="@+id/rbNShortVolUp"
+            <EditText
+                android:id="@+id/etAutoZeroSeconds"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:text="音量 +" />
-        </RadioGroup>
+                android:inputType="numberDecimal"
+                android:hint="例如：4.0"
+                android:layout_marginBottom="4dp" />
 
-        <TextView
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="N 极长按动作"
-            android:textSize="16sp"
-            android:textStyle="bold"
-            android:layout_marginTop="12dp" />
-
-        <RadioGroup
-            android:id="@+id/rgNLong"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content">
-
-            <RadioButton
-                android:id="@+id/rbNLongMedia"
+            <TextView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:text="播放/暂停" />
+                android:text="提示：建议阈值略高于地磁（50 μT 左右），持续 3-5 秒更平滑。"
+                android:textColor="#888"
+                android:textSize="12sp" />
+        </LinearLayout>
 
-            <RadioButton
-                android:id="@+id/rbNLongVoice"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:text="语音助手"
-                android:checked="true" />
-
-            <RadioButton
-                android:id="@+id/rbNLongPrev"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:text="上一曲" />
-
-            <RadioButton
-                android:id="@+id/rbNLongNext"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:text="下一曲" />
-
-            <RadioButton
-                android:id="@+id/rbNLongVolDown"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:text="音量 -" />
-
-            <RadioButton
-                android:id="@+id/rbNLongVolUp"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:text="音量 +" />
-        </RadioGroup>
-
-        <TextView
+        <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="S 极短按动作"
-            android:textSize="16sp"
-            android:textStyle="bold"
-            android:layout_marginTop="16dp" />
+            android:orientation="vertical"
+            android:padding="16dp"
+            android:background="#FFFFFF"
+            android:elevation="2dp"
+            android:layout_marginBottom="16dp"
+            android:paddingBottom="20dp"
+            android:clipToPadding="false"
+            android:clipChildren="false"
+            android:stateListAnimator="@null"
+            android:translationZ="1dp">
 
-        <RadioGroup
-            android:id="@+id/rgSShort"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content">
-
-            <RadioButton
-                android:id="@+id/rbSShortMedia"
+            <TextView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:text="播放/暂停"
-                android:checked="true" />
+                android:text="节能与采样"
+                android:textStyle="bold"
+                android:textSize="16sp" />
 
-            <RadioButton
-                android:id="@+id/rbSShortVoice"
+            <TextView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:text="语音助手" />
+                android:text="低场时降低采样，节电但保留灵敏。单位：μT、ms、Hz"
+                android:textColor="#666"
+                android:textSize="13sp"
+                android:paddingBottom="10dp" />
 
-            <RadioButton
-                android:id="@+id/rbSShortPrev"
+            <TextView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:text="上一曲" />
+                android:text="节能阈值 (μT)"
+                android:textColor="#374151"
+                android:textSize="14sp" />
 
-            <RadioButton
-                android:id="@+id/rbSShortNext"
+            <EditText
+                android:id="@+id/etEnergyThreshold"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:text="下一曲" />
+                android:inputType="numberDecimal"
+                android:hint="例如：100"
+                android:layout_marginBottom="8dp" />
 
-            <RadioButton
-                android:id="@+id/rbSShortVolDown"
+            <TextView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:text="音量 -" />
+                android:text="降采样延时 (ms)"
+                android:textColor="#374151"
+                android:textSize="14sp" />
 
-            <RadioButton
-                android:id="@+id/rbSShortVolUp"
+            <EditText
+                android:id="@+id/etEnergyHoldMs"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:text="音量 +" />
-        </RadioGroup>
+                android:inputType="number"
+                android:hint="例如：2000"
+                android:layout_marginBottom="8dp" />
 
-        <TextView
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="S 极长按动作"
-            android:textSize="16sp"
-            android:textStyle="bold"
-            android:layout_marginTop="12dp" />
-
-        <RadioGroup
-            android:id="@+id/rgSLong"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content">
-
-            <RadioButton
-                android:id="@+id/rbSLongMedia"
+            <TextView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:text="播放/暂停" />
+                android:text="高采样频率 (Hz)"
+                android:textColor="#374151"
+                android:textSize="14sp" />
 
-            <RadioButton
-                android:id="@+id/rbSLongVoice"
+            <EditText
+                android:id="@+id/etSamplingHighHz"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:text="语音助手"
-                android:checked="true" />
+                android:inputType="numberDecimal"
+                android:hint="例如：50"
+                android:layout_marginBottom="8dp" />
 
-            <RadioButton
-                android:id="@+id/rbSLongPrev"
+            <TextView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:text="上一曲" />
+                android:text="低采样频率 (Hz)"
+                android:textColor="#374151"
+                android:textSize="14sp" />
 
-            <RadioButton
-                android:id="@+id/rbSLongNext"
+            <EditText
+                android:id="@+id/etSamplingLowHz"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:text="下一曲" />
+                android:inputType="numberDecimal"
+                android:hint="例如：15"
+                android:layout_marginBottom="4dp" />
 
-            <RadioButton
-                android:id="@+id/rbSLongVolDown"
+            <TextView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:text="音量 -" />
+                android:text="提示：滑雪口袋放手机时可降低低频采样至 10-15 Hz。"
+                android:textColor="#888"
+                android:textSize="12sp" />
+        </LinearLayout>
 
-            <RadioButton
-                android:id="@+id/rbSLongVolUp"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:text="音量 +" />
-        </RadioGroup>
-
-        <Button
-            android:id="@+id/btnSave"
+        <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="保存设置"
-            android:layout_marginTop="24dp"
-            android:layout_marginBottom="24dp" />
+            android:orientation="vertical"
+            android:padding="16dp"
+            android:background="#FFFFFF"
+            android:elevation="2dp"
+            android:paddingBottom="20dp"
+            android:clipToPadding="false"
+            android:clipChildren="false"
+            android:stateListAnimator="@null"
+            android:translationZ="1dp">
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="触发模式"
+                android:textStyle="bold"
+                android:textSize="16sp" />
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="先选全局模式，再编辑对应的长/短按动作。"
+                android:textColor="#666"
+                android:textSize="13sp"
+                android:paddingBottom="10dp" />
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="模式选择"
+                android:textStyle="bold"
+                android:textSize="14sp"
+                android:paddingTop="4dp"
+                android:paddingBottom="4dp" />
+
+            <RadioGroup
+                android:id="@+id/rgPoleMode"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content">
+
+                <RadioButton
+                    android:id="@+id/rbBothPoles"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="所有极性（只看磁场强度）"
+                    android:checked="true" />
+
+                <RadioButton
+                    android:id="@+id/rbDifferent"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="区分极性（单独配置 N / S）" />
+            </RadioGroup>
+
+            <LinearLayout
+                android:id="@+id/groupAllPoleActions"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:paddingTop="8dp"
+                android:paddingBottom="8dp">
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="长短按动作"
+                    android:textStyle="bold"
+                    android:textSize="14sp" />
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="不看 N/S 极性，只用磁场强度触发。"
+                    android:textColor="#666"
+                    android:textSize="13sp"
+                    android:paddingBottom="6dp" />
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="短按动作"
+                    android:textStyle="bold"
+                    android:textSize="14sp" />
+
+                <Spinner
+                    android:id="@+id/spAllShort"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:spinnerMode="dropdown" />
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="长按动作"
+                    android:textStyle="bold"
+                    android:textSize="14sp"
+                    android:paddingTop="8dp" />
+
+                <Spinner
+                    android:id="@+id/spAllLong"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:spinnerMode="dropdown" />
+            </LinearLayout>
+
+            <LinearLayout
+                android:id="@+id/groupSplitPoleActions"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:paddingTop="8dp"
+                android:paddingBottom="8dp">
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="区分 N / S" 
+                    android:textStyle="bold"
+                    android:textSize="14sp" />
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="保持原有极性识别逻辑，适合手套双侧磁铁。"
+                    android:textColor="#666"
+                    android:textSize="13sp"
+                    android:paddingBottom="6dp" />
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="N 极短按"
+                    android:textStyle="bold"
+                    android:textSize="14sp" />
+
+                <Spinner
+                    android:id="@+id/spNShort"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:spinnerMode="dropdown" />
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="N 极长按"
+                    android:textStyle="bold"
+                    android:textSize="14sp"
+                    android:paddingTop="8dp" />
+
+                <Spinner
+                    android:id="@+id/spNLong"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:spinnerMode="dropdown" />
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="S 极短按"
+                    android:textStyle="bold"
+                    android:textSize="14sp"
+                    android:paddingTop="8dp" />
+
+                <Spinner
+                    android:id="@+id/spSShort"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:spinnerMode="dropdown" />
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="S 极长按"
+                    android:textStyle="bold"
+                    android:textSize="14sp"
+                    android:paddingTop="8dp" />
+
+                <Spinner
+                    android:id="@+id/spSLong"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:spinnerMode="dropdown"
+                    android:layout_marginBottom="4dp" />
+            </LinearLayout>
+
+            <Button
+                android:id="@+id/btnSave"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="保存设置"
+                android:layout_marginTop="8dp"
+                android:layout_marginBottom="12dp" />
+        </LinearLayout>
 
     </LinearLayout>
 </ScrollView>
