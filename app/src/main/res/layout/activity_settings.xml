@@ -175,7 +175,7 @@
             <TextView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:text="满足下列任一稳定条件时，自动重置零点，抵消强磁场残留。"
+                android:text="两条规则同时检测，任意满足即自动重置零点，后台运行同样生效。"
                 android:textColor="#666"
                 android:textSize="13sp"
                 android:paddingBottom="10dp" />
@@ -183,7 +183,7 @@
             <TextView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:text="低磁场阈值 (μT)"
+                android:text="低磁场归零阈值 (μT)"
                 android:textColor="#374151"
                 android:textSize="14sp" />
 
@@ -198,7 +198,7 @@
             <TextView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:text="持续时间 (秒)"
+                android:text="低磁场维持时间 (秒)"
                 android:textColor="#374151"
                 android:textSize="14sp" />
 
@@ -213,7 +213,7 @@
             <TextView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:text="稳定持续时间 (秒)"
+                android:text="稳定波动维持时间 (秒)"
                 android:textColor="#374151"
                 android:textSize="14sp" />
 
@@ -228,7 +228,7 @@
             <TextView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:text="抖动范围 (±μT)"
+                android:text="稳定波动幅度 (±μT)"
                 android:textColor="#374151"
                 android:textSize="14sp" />
 
@@ -243,7 +243,7 @@
             <TextView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:text="提示：• 条件一：磁场连续低于阈值；条件二：磁场在设定抖动范围内持续稳定。建议阈值略高于地磁 (≈50 μT)，持续 3-5 秒更平滑。"
+                android:text="提示：两条逻辑并行：① 磁场持续低于设定阈值；② 磁场波动长期落在设定幅度内。建议阈值略高于地磁 (≈50 μT)，持续 3-5 秒更平滑。"
                 android:textColor="#888"
                 android:textSize="12sp" />
         </LinearLayout>
