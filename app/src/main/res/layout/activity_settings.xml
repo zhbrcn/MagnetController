@@ -49,70 +49,120 @@
                 android:layout_height="wrap_content"
                 android:text="磁场阈值"
                 android:textStyle="bold"
-                android:textSize="16sp" />
+                android:textSize="16sp"
+                android:textColor="#111827" />
 
             <TextView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:text="高于触发阈值开始计时，低于恢复阈值并持续防抖时间判定松开。单位：μT、ms"
+                android:text="超过触发值开始计时，回落到恢复值并持续防抖时间才视为松开。单位：μT、ms"
                 android:textColor="#666"
                 android:textSize="13sp"
                 android:paddingBottom="10dp" />
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="触发阈值 (μT)"
+                android:textColor="#374151"
+                android:textSize="14sp" />
 
             <EditText
                 android:id="@+id/etThresholdTrigger"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:inputType="numberDecimal"
-                android:hint="触发阈值 (μT)"
+                android:hint="例如：600"
                 android:layout_marginBottom="8dp" />
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="恢复阈值 (μT)"
+                android:textColor="#374151"
+                android:textSize="14sp" />
 
             <EditText
                 android:id="@+id/etThresholdReset"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:inputType="numberDecimal"
-                android:hint="恢复阈值 (μT)"
+                android:hint="例如：300"
                 android:layout_marginBottom="8dp" />
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="恢复防抖 (ms)"
+                android:textColor="#374151"
+                android:textSize="14sp" />
 
             <EditText
                 android:id="@+id/etResetDebounce"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:inputType="number"
-                android:hint="恢复防抖 (ms)"
+                android:hint="例如：80"
                 android:layout_marginBottom="12dp" />
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="长按判定 (ms)"
+                android:textColor="#374151"
+                android:textSize="14sp" />
 
             <EditText
                 android:id="@+id/etLongPressMs"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:inputType="number"
-                android:hint="长按判定 (ms)"
+                android:hint="例如：1500"
                 android:layout_marginBottom="12dp" />
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="极性识别最小值 (μT)"
+                android:textColor="#374151"
+                android:textSize="14sp" />
 
             <EditText
                 android:id="@+id/etPolarityMin"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:inputType="numberDecimal"
-                android:hint="极性识别最小值 (μT)"
+                android:hint="例如：50"
                 android:layout_marginBottom="8dp" />
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="极性锁定最大值 (μT)"
+                android:textColor="#374151"
+                android:textSize="14sp" />
 
             <EditText
                 android:id="@+id/etPolarityMax"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:inputType="numberDecimal"
-                android:hint="极性锁定最大值 (μT)"
+                android:hint="例如：2000"
                 android:layout_marginBottom="12dp" />
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="极性防抖时间 (ms)"
+                android:textColor="#374151"
+                android:textSize="14sp" />
 
             <EditText
                 android:id="@+id/etPolarityDebounce"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:inputType="number"
-                android:hint="极性防抖时间 (ms)"
+                android:hint="例如：50"
                 android:layout_marginBottom="12dp" />
         </LinearLayout>
 
@@ -145,26 +195,40 @@
                 android:textSize="13sp"
                 android:paddingBottom="10dp" />
 
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="低磁场阈值 (μT)"
+                android:textColor="#374151"
+                android:textSize="14sp" />
+
             <EditText
                 android:id="@+id/etAutoZeroThreshold"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:inputType="numberDecimal"
-                android:hint="低磁场阈值 (μT)"
+                android:hint="例如：80.0"
                 android:layout_marginBottom="8dp" />
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="持续时间 (秒)"
+                android:textColor="#374151"
+                android:textSize="14sp" />
 
             <EditText
                 android:id="@+id/etAutoZeroSeconds"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:inputType="numberDecimal"
-                android:hint="持续时间 (秒)"
+                android:hint="例如：4.0"
                 android:layout_marginBottom="4dp" />
 
             <TextView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:text="提示：建议阈值略高于地磁（50μT 左右），持续 3-5 秒。"
+                android:text="提示：建议阈值略高于地磁（50 μT 左右），持续 3-5 秒更平滑。"
                 android:textColor="#888"
                 android:textSize="12sp" />
         </LinearLayout>
@@ -198,42 +262,70 @@
                 android:textSize="13sp"
                 android:paddingBottom="10dp" />
 
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="节能阈值 (μT)"
+                android:textColor="#374151"
+                android:textSize="14sp" />
+
             <EditText
                 android:id="@+id/etEnergyThreshold"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:inputType="numberDecimal"
-                android:hint="节能阈值 (μT)"
+                android:hint="例如：100"
                 android:layout_marginBottom="8dp" />
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="降采样延时 (ms)"
+                android:textColor="#374151"
+                android:textSize="14sp" />
 
             <EditText
                 android:id="@+id/etEnergyHoldMs"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:inputType="number"
-                android:hint="降采样延时 (ms)"
+                android:hint="例如：2000"
                 android:layout_marginBottom="8dp" />
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="高采样频率 (Hz)"
+                android:textColor="#374151"
+                android:textSize="14sp" />
 
             <EditText
                 android:id="@+id/etSamplingHighHz"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:inputType="numberDecimal"
-                android:hint="高采样频率 (Hz)"
+                android:hint="例如：50"
                 android:layout_marginBottom="8dp" />
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="低采样频率 (Hz)"
+                android:textColor="#374151"
+                android:textSize="14sp" />
 
             <EditText
                 android:id="@+id/etSamplingLowHz"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:inputType="numberDecimal"
-                android:hint="低采样频率 (Hz)"
+                android:hint="例如：15"
                 android:layout_marginBottom="4dp" />
 
             <TextView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:text="提示：滑雪口袋放手机时可降低低频采样至 10-15Hz。"
+                android:text="提示：滑雪口袋放手机时可降低低频采样至 10-15 Hz。"
                 android:textColor="#888"
                 android:textSize="12sp" />
         </LinearLayout>
