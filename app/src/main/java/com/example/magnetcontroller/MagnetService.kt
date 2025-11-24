@@ -72,7 +72,12 @@ class MagnetService : Service(), SensorEventListener {
     private var resetBelowSince = 0L
     private var autoZeroThreshold = 80f
     private var autoZeroDurationMs = 4000L
+    private var autoZeroStabilityBand = 20f
+    private var autoZeroStabilityDurationMs = 4000L
     private var autoZeroSince = 0L
+    private var autoZeroStableStart = 0L
+    private var autoZeroStableMin = 0f
+    private var autoZeroStableMax = 0f
     private var autoZeroLatched = false
     private var usePolarity = true
     private var soundPool: SoundPool? = null
@@ -138,10 +143,15 @@ class MagnetService : Service(), SensorEventListener {
         samplingLowDelayUs = hzToDelayUs(prefs.samplingLowRateHz, 66_000)
         autoZeroThreshold = prefs.autoZeroThreshold
         autoZeroDurationMs = prefs.autoZeroDurationMs
+        autoZeroStabilityBand = prefs.autoZeroStabilityBand
+        autoZeroStabilityDurationMs = prefs.autoZeroStabilityDurationMs
         usePolarity = prefs.poleMode == "different"
         belowEnergySince = 0L
         resetBelowSince = 0L
         autoZeroSince = 0L
+        autoZeroStableStart = 0L
+        autoZeroStableMin = 0f
+        autoZeroStableMax = 0f
         autoZeroLatched = false
         if (!usePolarity) {
             activePole = "none"
@@ -289,6 +299,9 @@ class MagnetService : Service(), SensorEventListener {
         resetBelowSince = 0L
         belowEnergySince = 0L
         autoZeroSince = 0L
+        autoZeroStableStart = 0L
+        autoZeroStableMin = 0f
+        autoZeroStableMax = 0f
         autoZeroLatched = false
         stopVibration()
 
@@ -297,20 +310,66 @@ class MagnetService : Service(), SensorEventListener {
     }
 
     private fun handleAutoZero(magnitude: Float, now: Long) {
-        if (autoZeroDurationMs <= 0L) return
+        if (autoZeroDurationMs <= 0L && autoZeroStabilityDurationMs <= 0L) return
 
-        if (magnitude < autoZeroThreshold) {
-            if (autoZeroSince == 0L) autoZeroSince = now
-            if (!autoZeroLatched && now - autoZeroSince >= autoZeroDurationMs) {
-                resetBaseline()
-                autoZeroLatched = true
-                logToUI(
-                    "🧭 磁场 ${"%.1f".format(autoZeroDurationMs / 1000f)} 秒低于 ${autoZeroThreshold.roundToInt()} μT，已自动归零"
-                )
+        val rearmCeiling = autoZeroThreshold + autoZeroStabilityBand
+        if (autoZeroLatched) {
+            if (magnitude > rearmCeiling) {
+                autoZeroLatched = false
+            } else {
+                return
+            }
+        }
+
+        var shouldZero = false
+        var zeroReason: String? = null
+
+        if (autoZeroDurationMs > 0L) {
+            if (magnitude < autoZeroThreshold) {
+                if (autoZeroSince == 0L) autoZeroSince = now
+                if (now - autoZeroSince >= autoZeroDurationMs) {
+                    shouldZero = true
+                    zeroReason = "磁场连续低于 ${autoZeroThreshold.roundToInt()} μT 持续"
+                }
+            } else {
+                autoZeroSince = 0L
+            }
+        }
+
+        if (!shouldZero && autoZeroStabilityDurationMs > 0L) {
+            if (autoZeroStableStart == 0L) {
+                autoZeroStableStart = now
+                autoZeroStableMin = magnitude
+                autoZeroStableMax = magnitude
+            } else {
+                autoZeroStableMin = minOf(autoZeroStableMin, magnitude)
+                autoZeroStableMax = maxOf(autoZeroStableMax, magnitude)
+            }
+
+            val withinBand = autoZeroStableMax - autoZeroStableMin <= autoZeroStabilityBand
+            if (withinBand) {
+                if (now - autoZeroStableStart >= autoZeroStabilityDurationMs) {
+                    shouldZero = true
+                    zeroReason = "磁场在 ±${autoZeroStabilityBand.roundToInt()} μT 内稳定持续"
+                }
+            } else {
+                autoZeroStableStart = now
+                autoZeroStableMin = magnitude
+                autoZeroStableMax = magnitude
             }
         } else {
+            autoZeroStableStart = 0L
+            autoZeroStableMin = magnitude
+            autoZeroStableMax = magnitude
+        }
+
+        if (shouldZero) {
+            resetBaseline()
+            autoZeroLatched = true
             autoZeroSince = 0L
-            autoZeroLatched = false
+            autoZeroStableStart = 0L
+            val durationMs = if (zeroReason?.contains("±") == true) autoZeroStabilityDurationMs else autoZeroDurationMs
+            logToUI("🧭 ${(zeroReason ?: "磁场稳定")} ${"%.1f".format(durationMs / 1000f)} 秒，已自动归零")
         }
     }
 

@@ -175,7 +175,7 @@
             <TextView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:text="磁场持续偏弱时自动重置零点，滑雪途中口袋里不再漂移。"
+                android:text="满足下列任一稳定条件时，自动重置零点，抵消强磁场残留。"
                 android:textColor="#666"
                 android:textSize="13sp"
                 android:paddingBottom="10dp" />
@@ -208,12 +208,42 @@
                 android:layout_height="wrap_content"
                 android:inputType="numberDecimal"
                 android:hint="例如：4.0"
+                android:layout_marginBottom="8dp" />
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="稳定持续时间 (秒)"
+                android:textColor="#374151"
+                android:textSize="14sp" />
+
+            <EditText
+                android:id="@+id/etAutoZeroStableSeconds"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:inputType="numberDecimal"
+                android:hint="例如：4.0"
+                android:layout_marginBottom="8dp" />
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="抖动范围 (±μT)"
+                android:textColor="#374151"
+                android:textSize="14sp" />
+
+            <EditText
+                android:id="@+id/etAutoZeroStableBand"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:inputType="numberDecimal"
+                android:hint="例如：20.0"
                 android:layout_marginBottom="4dp" />
 
             <TextView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:text="提示：建议阈值略高于地磁（50 μT 左右），持续 3-5 秒更平滑。"
+                android:text="提示：• 条件一：磁场连续低于阈值；条件二：磁场在设定抖动范围内持续稳定。建议阈值略高于地磁 (≈50 μT)，持续 3-5 秒更平滑。"
                 android:textColor="#888"
                 android:textSize="12sp" />
         </LinearLayout>
