@@ -168,6 +168,58 @@
             <TextView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
+                android:text="蓝牙绑定"
+                android:textStyle="bold"
+                android:textSize="16sp" />
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="仅在连接所选设备时响应磁铁触发，未选择或未连接时一律忽略。"
+                android:textColor="#666"
+                android:textSize="13sp"
+                android:paddingBottom="10dp" />
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="绑定设备"
+                android:textColor="#374151"
+                android:textSize="14sp" />
+
+            <Spinner
+                android:id="@+id/spBluetoothDevices"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:spinnerMode="dropdown" />
+
+            <TextView
+                android:id="@+id/tvBluetoothHint"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:textColor="#888"
+                android:textSize="12sp"
+                android:paddingTop="6dp"
+                android:text="如需更新列表，请在系统蓝牙中先配对目标耳机/设备" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:padding="16dp"
+            android:background="#FFFFFF"
+            android:elevation="2dp"
+            android:layout_marginBottom="16dp"
+            android:paddingBottom="20dp"
+            android:clipToPadding="false"
+            android:clipChildren="false"
+            android:stateListAnimator="@null"
+            android:translationZ="1dp">
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
                 android:text="自动归零"
                 android:textStyle="bold"
                 android:textSize="16sp" />

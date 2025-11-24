@@ -1,14 +1,19 @@
 package com.example.magnetcontroller
 
+import android.Manifest
 import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
 import android.app.Service
+import android.bluetooth.BluetoothDevice
+import android.bluetooth.BluetoothManager
+import android.bluetooth.BluetoothProfile
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
+import android.content.pm.PackageManager
 import android.hardware.Sensor
 import android.hardware.SensorEvent
 import android.hardware.SensorEventListener
@@ -89,6 +94,10 @@ class MagnetService : Service(), SensorEventListener {
     private var strongSuppressionMin = 0f
     private var strongSuppressionMax = 0f
     private var strongSuppressionLatched = false
+    private var requiredBluetoothAddress: String = ""
+    private var requiredBluetoothName: String = ""
+    private var bluetoothGateSatisfied = false
+    private var lastBluetoothGateState: Boolean? = null
     private var usePolarity = true
     private var soundPool: SoundPool? = null
     private val soundIds = mutableMapOf<String, Int>()
@@ -117,6 +126,18 @@ class MagnetService : Service(), SensorEventListener {
         }
     }
 
+    private val bluetoothReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context?, intent: Intent?) {
+            val device = getBluetoothDeviceFromIntent(intent) ?: return
+            if (!device.address.equals(requiredBluetoothAddress, ignoreCase = true)) return
+
+            when (intent?.action) {
+                BluetoothDevice.ACTION_ACL_CONNECTED -> updateBluetoothGateState(true)
+                BluetoothDevice.ACTION_ACL_DISCONNECTED, BluetoothDevice.ACTION_ACL_DISCONNECT_REQUESTED -> updateBluetoothGateState(false)
+            }
+        }
+    }
+
     override fun onCreate() {
         super.onCreate()
         prefs = AppPreferences(this)
@@ -141,6 +162,17 @@ class MagnetService : Service(), SensorEventListener {
         } else {
             registerReceiver(screenReceiver, screenFilter)
         }
+
+        val bluetoothFilter = IntentFilter().apply {
+            addAction(BluetoothDevice.ACTION_ACL_CONNECTED)
+            addAction(BluetoothDevice.ACTION_ACL_DISCONNECT_REQUESTED)
+            addAction(BluetoothDevice.ACTION_ACL_DISCONNECTED)
+        }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            registerReceiver(bluetoothReceiver, bluetoothFilter, Context.RECEIVER_NOT_EXPORTED)
+        } else {
+            registerReceiver(bluetoothReceiver, bluetoothFilter)
+        }
     }
 
     private fun loadSettings() {
@@ -160,6 +192,8 @@ class MagnetService : Service(), SensorEventListener {
         strongSuppressionThreshold = prefs.strongSuppressionThreshold
         strongSuppressionDurationMs = prefs.strongSuppressionDurationMs
         strongSuppressionJitter = prefs.strongSuppressionJitter
+        requiredBluetoothAddress = prefs.bluetoothDeviceAddress
+        requiredBluetoothName = prefs.bluetoothDeviceName
         usePolarity = prefs.poleMode == "different"
         belowEnergySince = 0L
         resetBelowSince = 0L
@@ -172,6 +206,7 @@ class MagnetService : Service(), SensorEventListener {
         strongSuppressionLatched = false
         strongSuppressionMin = 0f
         strongSuppressionMax = 0f
+        refreshBluetoothGateState(initial = true)
         if (!usePolarity) {
             activePole = "none"
             lockedPole = "none"
@@ -283,6 +318,7 @@ class MagnetService : Service(), SensorEventListener {
         sensorManager.unregisterListener(this)
         unregisterReceiver(settingsReceiver)
         unregisterReceiver(screenReceiver)
+        unregisterReceiver(bluetoothReceiver)
         stopVibration()
         releaseSoundEffects()
     }
@@ -312,7 +348,22 @@ class MagnetService : Service(), SensorEventListener {
         val poleForUi = if (usePolarity) updatePolarity(x, y, z, magnitude, now) else "all"
 
         sendBroadcastToUI(x, y, z, magnitude, poleForUi)
+        if (!isTriggerAllowed()) return
+
         processLogic(x, z, magnitude, now, poleForUi)
+    }
+
+    private fun isTriggerAllowed(): Boolean {
+        if (requiredBluetoothAddress.isBlank()) {
+            updateBluetoothGateState(false)
+            return false
+        }
+
+        if (!bluetoothGateSatisfied) {
+            refreshBluetoothGateState()
+        }
+
+        return bluetoothGateSatisfied
     }
 
     private fun resetBaseline(logMessage: String = "✅ 已手动归零") {
@@ -434,6 +485,84 @@ class MagnetService : Service(), SensorEventListener {
             strongSuppressionStart = 0L
             strongSuppressionMin = magnitude
             strongSuppressionMax = magnitude
+        }
+
+        return false
+    }
+
+    private fun refreshBluetoothGateState(initial: Boolean = false) {
+        val connected = if (requiredBluetoothAddress.isBlank()) {
+            false
+        } else {
+            isDeviceCurrentlyConnected(requiredBluetoothAddress)
+        }
+        updateBluetoothGateState(connected, initial)
+    }
+
+    private fun updateBluetoothGateState(isConnected: Boolean, forceLog: Boolean = false) {
+        val stateChanged = lastBluetoothGateState != isConnected
+        bluetoothGateSatisfied = isConnected
+        if (!isConnected) {
+            cancelActiveTrigger()
+        }
+
+        if (forceLog || stateChanged) {
+            if (requiredBluetoothAddress.isBlank()) {
+                logToUI("⏸ 未选择蓝牙设备，所有磁力触发已暂停")
+            } else if (!hasBluetoothConnectPermission()) {
+                logToUI("⏸ 缺少蓝牙连接权限，无法检查设备连接，已暂停触发")
+            } else if (isConnected) {
+                val name = requiredBluetoothName.ifBlank { requiredBluetoothAddress }
+                logToUI("✅ 已连接到 $name，磁力触发已启用")
+            } else {
+                val name = requiredBluetoothName.ifBlank { requiredBluetoothAddress }
+                logToUI("⏸ 未检测到所选设备（$name）的连接，触发已暂停")
+            }
+        }
+
+        lastBluetoothGateState = isConnected
+    }
+
+    private fun isDeviceCurrentlyConnected(address: String): Boolean {
+        if (!hasBluetoothConnectPermission()) return false
+        val manager = getSystemService(Context.BLUETOOTH_SERVICE) as BluetoothManager? ?: return false
+
+        val profiles = listOf(
+            BluetoothProfile.HEADSET,
+            BluetoothProfile.A2DP,
+            BluetoothProfile.GATT
+        )
+
+        profiles.forEach { profile ->
+            try {
+                if (manager.getConnectedDevices(profile).any { it.address.equals(address, ignoreCase = true) }) {
+                    return true
+                }
+            } catch (se: SecurityException) {
+                Log.w(TAG, "蓝牙连接状态检查失败: ${se.message}")
+                return false
+            }
+        }
+
+        return false
+    }
+
+    private fun hasBluetoothConnectPermission(): Boolean {
+        return Build.VERSION.SDK_INT < Build.VERSION_CODES.S ||
+            checkSelfPermission(Manifest.permission.BLUETOOTH_CONNECT) == PackageManager.PERMISSION_GRANTED
+    }
+
+    private fun getBluetoothDeviceFromIntent(intent: Intent?): BluetoothDevice? {
+        intent ?: return null
+        return try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                intent.getParcelableExtra(BluetoothDevice.EXTRA_DEVICE, BluetoothDevice::class.java)
+            } else {
+                @Suppress("DEPRECATION")
+                intent.getParcelableExtra(BluetoothDevice.EXTRA_DEVICE)
+            }
+        } catch (_: Exception) {
+            null
         }
 
         return false

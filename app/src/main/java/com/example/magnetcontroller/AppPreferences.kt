@@ -86,6 +86,14 @@ class AppPreferences(context: Context) {
         get() = prefs.getFloat("strong_suppression_jitter", 40f)
         set(value) = prefs.edit().putFloat("strong_suppression_jitter", value).apply()
 
+    var bluetoothDeviceAddress: String
+        get() = prefs.getString("bluetooth_device_address", "") ?: ""
+        set(value) = prefs.edit().putString("bluetooth_device_address", value).apply()
+
+    var bluetoothDeviceName: String
+        get() = prefs.getString("bluetooth_device_name", "") ?: ""
+        set(value) = prefs.edit().putString("bluetooth_device_name", value).apply()
+
     var allShortAction: String
         get() = getAction("all_short_action", "play_pause")
         set(value) = setAction("all_short_action", value)

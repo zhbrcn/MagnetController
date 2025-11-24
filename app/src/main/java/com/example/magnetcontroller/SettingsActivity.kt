@@ -1,10 +1,15 @@
 package com.example.magnetcontroller
 
+import android.Manifest
+import android.bluetooth.BluetoothManager
 import android.content.Intent
+import android.content.pm.PackageManager
+import android.os.Build
 import android.os.Bundle
 import android.view.View
 import android.widget.ArrayAdapter
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.content.getSystemService
 import com.example.magnetcontroller.databinding.ActivitySettingsBinding
 import java.util.Locale
 
@@ -12,6 +17,8 @@ class SettingsActivity : AppCompatActivity() {
 
     private lateinit var binding: ActivitySettingsBinding
     private lateinit var prefs: AppPreferences
+    private var bluetoothDevices: List<BluetoothDeviceItem> = emptyList()
+    private lateinit var bluetoothAdapter: ArrayAdapter<String>
     private val actionOptions = listOf(
         ActionOption("play_pause", "播放 / 暂停"),
         ActionOption("next", "下一曲"),
@@ -27,6 +34,7 @@ class SettingsActivity : AppCompatActivity() {
         setContentView(binding.root)
 
         prefs = AppPreferences(this)
+        setupBluetoothSelector()
         setupActionSpinners()
         loadSettings()
         setupListeners()
@@ -50,6 +58,9 @@ class SettingsActivity : AppCompatActivity() {
         binding.etStrongSuppressionThreshold.setText(prefs.strongSuppressionThreshold.toString())
         binding.etStrongSuppressionDuration.setText(prefs.strongSuppressionDurationMs.toString())
         binding.etStrongSuppressionJitter.setText(prefs.strongSuppressionJitter.toString())
+
+        val btIndex = bluetoothDevices.indexOfFirst { it.address == prefs.bluetoothDeviceAddress }
+        binding.spBluetoothDevices.setSelection(if (btIndex >= 0) btIndex + 1 else 0)
 
         when (prefs.poleMode) {
             "different" -> binding.rbDifferent.isChecked = true
@@ -93,6 +104,10 @@ class SettingsActivity : AppCompatActivity() {
         prefs.strongSuppressionDurationMs = binding.etStrongSuppressionDuration.text.toString().toLongOrNull() ?: 400L
         prefs.strongSuppressionJitter = binding.etStrongSuppressionJitter.text.toString().toFloatOrNull() ?: 40f
 
+        val selectedBt = readSelectedBluetoothDevice()
+        prefs.bluetoothDeviceAddress = selectedBt?.address ?: ""
+        prefs.bluetoothDeviceName = selectedBt?.name ?: ""
+
         prefs.poleMode = if (binding.rbDifferent.isChecked) "different" else "both"
 
         prefs.allShortAction = readActionFromSpinner(binding.spAllShort)
@@ -130,10 +145,62 @@ class SettingsActivity : AppCompatActivity() {
         }
     }
 
+    private fun setupBluetoothSelector() {
+        bluetoothAdapter = ArrayAdapter(
+            this,
+            android.R.layout.simple_spinner_item,
+            mutableListOf("未选择（未连接时暂停触发）")
+        ).also { it.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item) }
+        binding.spBluetoothDevices.adapter = bluetoothAdapter
+        binding.spBluetoothDevices.prompt = "选择绑定设备"
+
+        bluetoothDevices = loadRememberedBluetoothDevices()
+        val items = bluetoothDevices.map { device ->
+            val displayName = device.name.ifBlank { device.address }
+            "$displayName (${device.address})"
+        }
+        bluetoothAdapter.addAll(items)
+
+        when {
+            !hasBluetoothPermission() -> {
+                binding.tvBluetoothHint.text = "未授予蓝牙权限，列表无法读取；请在系统设置授予蓝牙连接权限"
+                binding.spBluetoothDevices.isEnabled = false
+            }
+            bluetoothDevices.isEmpty() -> {
+                binding.tvBluetoothHint.text = "未找到已配对设备，请先在系统蓝牙配对耳机/手表等，再回到此处选择"
+            }
+        }
+    }
+
     private fun setSpinnerSelection(spinner: android.widget.Spinner, action: String) {
         val normalized = if (action == "media") "play_pause" else action
         val index = actionOptions.indexOfFirst { it.key == normalized }.takeIf { it >= 0 } ?: 0
         spinner.setSelection(index)
+    }
+
+    private fun loadRememberedBluetoothDevices(): List<BluetoothDeviceItem> {
+        val manager = getSystemService<BluetoothManager>() ?: return emptyList()
+        val adapter = manager.adapter ?: return emptyList()
+        if (!hasBluetoothPermission()) return emptyList()
+
+        val devices = adapter.bondedDevices?.map { dev ->
+            BluetoothDeviceItem(dev.name.orEmpty(), dev.address ?: "")
+        } ?: emptyList()
+
+        return devices.filter { it.address.isNotBlank() }.sortedBy { it.name.lowercase(Locale.getDefault()) }
+    }
+
+    private fun readSelectedBluetoothDevice(): BluetoothDeviceItem? {
+        val position = binding.spBluetoothDevices.selectedItemPosition
+        return if (position <= 0) null else bluetoothDevices.getOrNull(position - 1)
+    }
+
+    private fun hasBluetoothPermission(): Boolean {
+        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            checkSelfPermission(Manifest.permission.BLUETOOTH_CONNECT) == PackageManager.PERMISSION_GRANTED
+        } else {
+            true
+        }
     }
 
     private fun readActionFromSpinner(spinner: android.widget.Spinner): String {
@@ -150,4 +217,5 @@ class SettingsActivity : AppCompatActivity() {
     }
 
     private data class ActionOption(val key: String, val label: String)
+    private data class BluetoothDeviceItem(val name: String, val address: String)
 }
