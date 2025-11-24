@@ -47,7 +47,7 @@ class MainActivity : AppCompatActivity() {
             startActivity(Intent(this, SettingsActivity::class.java))
         }
 
-        binding.btnZero.setOnClickListener {
+        binding.btnManualZero.setOnClickListener {
             requestManualZero()
         }
     }
