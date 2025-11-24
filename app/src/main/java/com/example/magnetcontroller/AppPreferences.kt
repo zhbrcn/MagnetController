@@ -66,6 +66,14 @@ class AppPreferences(context: Context) {
         get() = prefs.getLong("auto_zero_duration_ms", 4000L)
         set(value) = prefs.edit().putLong("auto_zero_duration_ms", value).apply()
 
+    var allShortAction: String
+        get() = getAction("all_short_action", "play_pause")
+        set(value) = setAction("all_short_action", value)
+
+    var allLongAction: String
+        get() = getAction("all_long_action", "voice")
+        set(value) = setAction("all_long_action", value)
+
     var nShortAction: String
         get() = getAction("n_short_action", "play_pause")
         set(value) = setAction("n_short_action", value)

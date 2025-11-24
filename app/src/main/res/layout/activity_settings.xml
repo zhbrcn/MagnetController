@@ -331,14 +331,14 @@
             <TextView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:text="触发动作"
+                android:text="触发模式"
                 android:textStyle="bold"
                 android:textSize="16sp" />
 
             <TextView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:text="四个动作改用下拉选择，便于单手浏览。"
+                android:text="先选全局模式，再编辑对应的长/短按动作。"
                 android:textColor="#666"
                 android:textSize="13sp"
                 android:paddingBottom="10dp" />
@@ -346,7 +346,7 @@
             <TextView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:text="磁极模式"
+                android:text="模式选择"
                 android:textStyle="bold"
                 android:textSize="14sp"
                 android:paddingTop="4dp"
@@ -361,79 +361,153 @@
                     android:id="@+id/rbBothPoles"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:text="所有磁极（N/S 都触发）"
+                    android:text="所有极性（只看磁场强度）"
                     android:checked="true" />
 
                 <RadioButton
                     android:id="@+id/rbDifferent"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:text="区分磁极（N/S 可配置不同动作）" />
+                    android:text="区分极性（单独配置 N / S）" />
             </RadioGroup>
 
-            <TextView
+            <LinearLayout
+                android:id="@+id/groupAllPoleActions"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:text="N 极短按"
-                android:textStyle="bold"
-                android:textSize="14sp"
-                android:paddingTop="8dp" />
+                android:orientation="vertical"
+                android:paddingTop="8dp"
+                android:paddingBottom="8dp">
 
-            <Spinner
-                android:id="@+id/spNShort"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:spinnerMode="dropdown" />
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="长短按动作"
+                    android:textStyle="bold"
+                    android:textSize="14sp" />
 
-            <TextView
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:text="N 极长按"
-                android:textStyle="bold"
-                android:textSize="14sp"
-                android:paddingTop="8dp" />
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="不看 N/S 极性，只用磁场强度触发。"
+                    android:textColor="#666"
+                    android:textSize="13sp"
+                    android:paddingBottom="6dp" />
 
-            <Spinner
-                android:id="@+id/spNLong"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:spinnerMode="dropdown" />
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="短按动作"
+                    android:textStyle="bold"
+                    android:textSize="14sp" />
 
-            <TextView
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:text="S 极短按"
-                android:textStyle="bold"
-                android:textSize="14sp"
-                android:paddingTop="8dp" />
+                <Spinner
+                    android:id="@+id/spAllShort"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:spinnerMode="dropdown" />
 
-            <Spinner
-                android:id="@+id/spSShort"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:spinnerMode="dropdown" />
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="长按动作"
+                    android:textStyle="bold"
+                    android:textSize="14sp"
+                    android:paddingTop="8dp" />
 
-            <TextView
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:text="S 极长按"
-                android:textStyle="bold"
-                android:textSize="14sp"
-                android:paddingTop="8dp" />
+                <Spinner
+                    android:id="@+id/spAllLong"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:spinnerMode="dropdown" />
+            </LinearLayout>
 
-            <Spinner
-                android:id="@+id/spSLong"
+            <LinearLayout
+                android:id="@+id/groupSplitPoleActions"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:spinnerMode="dropdown"
-                android:layout_marginBottom="12dp" />
+                android:orientation="vertical"
+                android:paddingTop="8dp"
+                android:paddingBottom="8dp">
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="区分 N / S" 
+                    android:textStyle="bold"
+                    android:textSize="14sp" />
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="保持原有极性识别逻辑，适合手套双侧磁铁。"
+                    android:textColor="#666"
+                    android:textSize="13sp"
+                    android:paddingBottom="6dp" />
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="N 极短按"
+                    android:textStyle="bold"
+                    android:textSize="14sp" />
+
+                <Spinner
+                    android:id="@+id/spNShort"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:spinnerMode="dropdown" />
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="N 极长按"
+                    android:textStyle="bold"
+                    android:textSize="14sp"
+                    android:paddingTop="8dp" />
+
+                <Spinner
+                    android:id="@+id/spNLong"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:spinnerMode="dropdown" />
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="S 极短按"
+                    android:textStyle="bold"
+                    android:textSize="14sp"
+                    android:paddingTop="8dp" />
+
+                <Spinner
+                    android:id="@+id/spSShort"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:spinnerMode="dropdown" />
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="S 极长按"
+                    android:textStyle="bold"
+                    android:textSize="14sp"
+                    android:paddingTop="8dp" />
+
+                <Spinner
+                    android:id="@+id/spSLong"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:spinnerMode="dropdown"
+                    android:layout_marginBottom="4dp" />
+            </LinearLayout>
 
             <Button
                 android:id="@+id/btnSave"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:text="保存设置"
-                android:layout_marginTop="12dp"
+                android:layout_marginTop="8dp"
                 android:layout_marginBottom="12dp" />
         </LinearLayout>
 

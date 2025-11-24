@@ -2,6 +2,7 @@ package com.example.magnetcontroller
 
 import android.content.Intent
 import android.os.Bundle
+import android.view.View
 import android.widget.ArrayAdapter
 import androidx.appcompat.app.AppCompatActivity
 import com.example.magnetcontroller.databinding.ActivitySettingsBinding
@@ -50,14 +51,22 @@ class SettingsActivity : AppCompatActivity() {
             else -> binding.rbBothPoles.isChecked = true
         }
 
+        setSpinnerSelection(binding.spAllShort, prefs.allShortAction)
+        setSpinnerSelection(binding.spAllLong, prefs.allLongAction)
         setSpinnerSelection(binding.spNShort, prefs.nShortAction)
         setSpinnerSelection(binding.spNLong, prefs.nLongAction)
         setSpinnerSelection(binding.spSShort, prefs.sShortAction)
         setSpinnerSelection(binding.spSLong, prefs.sLongAction)
+
+        updateActionVisibility()
     }
 
     private fun setupListeners() {
         binding.btnSave.setOnClickListener { saveSettings() }
+
+        binding.rgPoleMode.setOnCheckedChangeListener { _, _ ->
+            updateActionVisibility()
+        }
     }
 
     private fun saveSettings() {
@@ -76,6 +85,8 @@ class SettingsActivity : AppCompatActivity() {
 
         prefs.poleMode = if (binding.rbDifferent.isChecked) "different" else "both"
 
+        prefs.allShortAction = readActionFromSpinner(binding.spAllShort)
+        prefs.allLongAction = readActionFromSpinner(binding.spAllLong)
         prefs.nShortAction = readActionFromSpinner(binding.spNShort)
         prefs.nLongAction = readActionFromSpinner(binding.spNLong)
         prefs.sShortAction = readActionFromSpinner(binding.spSShort)
@@ -96,7 +107,14 @@ class SettingsActivity : AppCompatActivity() {
             actionOptions.map { it.label }
         ).also { it.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item) }
 
-        listOf(binding.spNShort, binding.spNLong, binding.spSShort, binding.spSLong).forEach {
+        listOf(
+            binding.spAllShort,
+            binding.spAllLong,
+            binding.spNShort,
+            binding.spNLong,
+            binding.spSShort,
+            binding.spSLong
+        ).forEach {
             it.adapter = adapter
             it.prompt = "选择动作"
         }
@@ -111,6 +129,14 @@ class SettingsActivity : AppCompatActivity() {
     private fun readActionFromSpinner(spinner: android.widget.Spinner): String {
         val position = spinner.selectedItemPosition
         return actionOptions.getOrNull(position)?.key ?: "play_pause"
+    }
+
+    private fun updateActionVisibility() {
+        val splitPoles = binding.rbDifferent.isChecked
+        binding.groupAllPoleActions.visibility = if (splitPoles) android.view.View.GONE else android.view.View.VISIBLE
+        binding.groupSplitPoleActions.visibility = if (splitPoles) android.view.View.VISIBLE else android.view.View.GONE
+        binding.etPolarityMin.isEnabled = splitPoles
+        binding.etPolarityMax.isEnabled = splitPoles
     }
 
     private data class ActionOption(val key: String, val label: String)

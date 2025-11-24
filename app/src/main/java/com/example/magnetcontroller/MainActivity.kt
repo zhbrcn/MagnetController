@@ -86,6 +86,7 @@ class MainActivity : AppCompatActivity() {
             val poleText = when (pole) {
                 "N" -> "极性: N极 (北极)"
                 "S" -> "极性: S极 (南极)"
+                "all" -> "极性: 不区分（全磁场触发）"
                 else -> "极性: 未检测"
             }
             binding.tvPoleType.text = poleText
@@ -93,6 +94,7 @@ class MainActivity : AppCompatActivity() {
                 when (pole) {
                     "N" -> android.graphics.Color.parseColor("#60A5FA")
                     "S" -> android.graphics.Color.parseColor("#FCA5A5")
+                    "all" -> android.graphics.Color.parseColor("#6B7280")
                     else -> android.graphics.Color.parseColor("#9FB0D3")
                 }
             )
