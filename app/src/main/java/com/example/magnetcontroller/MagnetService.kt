@@ -566,6 +566,156 @@ class MagnetService : Service(), SensorEventListener {
             Log.w(TAG, "无法解析蓝牙广播设备: ${e.message}")
             null
         }
+
+        return false
+    }
+
+    private fun refreshBluetoothGateState(initial: Boolean = false) {
+        val connected = if (requiredBluetoothAddress.isBlank()) {
+            false
+        } else {
+            isDeviceCurrentlyConnected(requiredBluetoothAddress)
+        }
+        updateBluetoothGateState(connected, initial)
+    }
+
+    private fun updateBluetoothGateState(isConnected: Boolean, forceLog: Boolean = false) {
+        val stateChanged = lastBluetoothGateState != isConnected
+        bluetoothGateSatisfied = isConnected
+        if (!isConnected) {
+            cancelActiveTrigger()
+        }
+
+        if (forceLog || stateChanged) {
+            if (requiredBluetoothAddress.isBlank()) {
+                logToUI("⏸ 未选择蓝牙设备，所有磁力触发已暂停")
+            } else if (!hasBluetoothConnectPermission()) {
+                logToUI("⏸ 缺少蓝牙连接权限，无法检查设备连接，已暂停触发")
+            } else if (isConnected) {
+                val name = requiredBluetoothName.ifBlank { requiredBluetoothAddress }
+                logToUI("✅ 已连接到 $name，磁力触发已启用")
+            } else {
+                val name = requiredBluetoothName.ifBlank { requiredBluetoothAddress }
+                logToUI("⏸ 未检测到所选设备（$name）的连接，触发已暂停")
+            }
+        }
+
+        lastBluetoothGateState = isConnected
+    }
+
+    private fun isDeviceCurrentlyConnected(address: String): Boolean {
+        if (!hasBluetoothConnectPermission()) return false
+        val manager = getSystemService(Context.BLUETOOTH_SERVICE) as BluetoothManager? ?: return false
+
+        val profiles = listOf(
+            BluetoothProfile.HEADSET,
+            BluetoothProfile.A2DP,
+            BluetoothProfile.GATT
+        )
+
+        profiles.forEach { profile ->
+            try {
+                if (manager.getConnectedDevices(profile).any { it.address.equals(address, ignoreCase = true) }) {
+                    return true
+                }
+            } catch (se: SecurityException) {
+                Log.w(TAG, "蓝牙连接状态检查失败: ${se.message}")
+                return false
+            }
+        }
+
+        return false
+    }
+
+    private fun hasBluetoothConnectPermission(): Boolean {
+        return Build.VERSION.SDK_INT < Build.VERSION_CODES.S ||
+            checkSelfPermission(Manifest.permission.BLUETOOTH_CONNECT) == PackageManager.PERMISSION_GRANTED
+    }
+
+    private fun getBluetoothDeviceFromIntent(intent: Intent?): BluetoothDevice? {
+        if (intent == null) return null
+        return try {
+            val device: BluetoothDevice? = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                intent.getParcelableExtra(BluetoothDevice.EXTRA_DEVICE, BluetoothDevice::class.java)
+            } else {
+                @Suppress("DEPRECATION")
+                intent.getParcelableExtra(BluetoothDevice.EXTRA_DEVICE) as? BluetoothDevice
+            }
+            device
+        } catch (e: Exception) {
+            Log.w(TAG, "无法解析蓝牙广播设备: ${e.message}")
+            null
+        }
+        updateBluetoothGateState(connected, initial)
+    }
+
+    private fun updateBluetoothGateState(isConnected: Boolean, forceLog: Boolean = false) {
+        val stateChanged = lastBluetoothGateState != isConnected
+        bluetoothGateSatisfied = isConnected
+        if (!isConnected) {
+            cancelActiveTrigger()
+        }
+
+        if (forceLog || stateChanged) {
+            if (requiredBluetoothAddress.isBlank()) {
+                logToUI("⏸ 未选择蓝牙设备，所有磁力触发已暂停")
+            } else if (!hasBluetoothConnectPermission()) {
+                logToUI("⏸ 缺少蓝牙连接权限，无法检查设备连接，已暂停触发")
+            } else if (isConnected) {
+                val name = requiredBluetoothName.ifBlank { requiredBluetoothAddress }
+                logToUI("✅ 已连接到 $name，磁力触发已启用")
+            } else {
+                val name = requiredBluetoothName.ifBlank { requiredBluetoothAddress }
+                logToUI("⏸ 未检测到所选设备（$name）的连接，触发已暂停")
+            }
+        }
+
+        lastBluetoothGateState = isConnected
+    }
+
+    private fun isDeviceCurrentlyConnected(address: String): Boolean {
+        if (!hasBluetoothConnectPermission()) return false
+        val manager = getSystemService(Context.BLUETOOTH_SERVICE) as BluetoothManager? ?: return false
+
+        val profiles = listOf(
+            BluetoothProfile.HEADSET,
+            BluetoothProfile.A2DP,
+            BluetoothProfile.GATT
+        )
+
+        profiles.forEach { profile ->
+            try {
+                if (manager.getConnectedDevices(profile).any { it.address.equals(address, ignoreCase = true) }) {
+                    return true
+                }
+            } catch (se: SecurityException) {
+                Log.w(TAG, "蓝牙连接状态检查失败: ${se.message}")
+                return false
+            }
+        }
+
+        return false
+    }
+
+    private fun hasBluetoothConnectPermission(): Boolean {
+        return Build.VERSION.SDK_INT < Build.VERSION_CODES.S ||
+            checkSelfPermission(Manifest.permission.BLUETOOTH_CONNECT) == PackageManager.PERMISSION_GRANTED
+    }
+
+    private fun getBluetoothDeviceFromIntent(intent: Intent?): BluetoothDevice? {
+        intent ?: return null
+        return try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                intent.getParcelableExtra(BluetoothDevice.EXTRA_DEVICE, BluetoothDevice::class.java)
+            } else {
+                @Suppress("DEPRECATION")
+                intent.getParcelableExtra(BluetoothDevice.EXTRA_DEVICE)
+            }
+        } catch (_: Exception) {
+            null
+        }
+
+        return false
     }
 
     private fun updatePolarity(x: Float, y: Float, z: Float, magnitude: Float, now: Long): String {
