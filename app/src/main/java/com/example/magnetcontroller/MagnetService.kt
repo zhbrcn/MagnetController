@@ -494,7 +494,7 @@ class MagnetService : Service(), SensorEventListener {
         val connected = if (requiredBluetoothAddress.isBlank()) {
             false
         } else {
-            isDeviceCurrentlyConnected(requiredBluetoothAddress)
+            isRequiredDeviceConnectedNow(requiredBluetoothAddress)
         }
         setBluetoothGateState(connected, initial)
     }
@@ -523,7 +523,7 @@ class MagnetService : Service(), SensorEventListener {
         lastBluetoothGateState = isConnected
     }
 
-    private fun isDeviceCurrentlyConnected(address: String): Boolean {
+    private fun isRequiredDeviceConnectedNow(address: String): Boolean {
         if (!hasBluetoothConnectPermission()) return false
         val manager = getSystemService(Context.BLUETOOTH_SERVICE) as BluetoothManager? ?: return false
 
