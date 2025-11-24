@@ -23,27 +23,33 @@ import android.os.VibratorManager
 import android.util.Log
 import android.view.KeyEvent
 import androidx.core.app.NotificationCompat
-import kotlin.math.abs
 import kotlin.math.roundToInt
 import kotlin.math.sqrt
 
 class MagnetService : Service(), SensorEventListener {
     companion object {
         const val ACTION_TRIGGER_VOICE = "com.example.magnetcontroller.TRIGGER_VOICE"
+        const val ACTION_ZERO_SENSOR = "com.example.magnetcontroller.ZERO_SENSOR"
     }
 
     private lateinit var sensorManager: SensorManager
     private var magnetometer: Sensor? = null
     private lateinit var prefs: AppPreferences
+    private var zeroOffsetX = 0f
+    private var zeroOffsetY = 0f
+    private var zeroOffsetZ = 0f
+    private var lastRawX = 0f
+    private var lastRawY = 0f
+    private var lastRawZ = 0f
 
     private var triggerStartTime = 0L
     private var isLongPressTriggered = false
     private var isContinuousVibrating = false
-    private var stablePole: String = "none"
-    private var poleCandidate: String = "none"
-    private var poleCandidateSince = 0L
     private var activePole: String = "none"
     private var lockedPole: String = "none"
+    private var sampleWindowStart = 0L
+    private var lastMagnitude = 0f
+    private val sampleWindow = mutableListOf<FloatArray>()
     private var lastActionTime = 0L
     private var wakeLock: PowerManager.WakeLock? = null
     private var lastUiMag = -1f
@@ -53,8 +59,9 @@ class MagnetService : Service(), SensorEventListener {
 
     private val actionCooldownMs = 900L
     private var longPressThresholdMs = 1500L
-    private var poleStableMs = 10L
-    private var poleChangeAbortMs = 50L
+    private var midWindowLower = 200f
+    private var midWindowUpper = 500f
+    private var strongLockThreshold = 600f
     private var energyThresholdSq = 100f * 100f
     private var energyHoldMs = 2000L
     private var samplingHighDelayUs = 20_000
@@ -62,6 +69,10 @@ class MagnetService : Service(), SensorEventListener {
     private var currentDelayUs = 0
     private var belowEnergySince = 0L
     private var resetBelowSince = 0L
+    private var autoZeroThreshold = 80f
+    private var autoZeroDurationMs = 4000L
+    private var autoZeroSince = 0L
+    private var autoZeroLatched = false
     private val longPressPattern = longArrayOf(0, 200, 100, 200)
     private val CHANNEL_ID = "MagnetServiceChannel"
     private val TAG = "MagnetService"
@@ -113,23 +124,34 @@ class MagnetService : Service(), SensorEventListener {
     private fun loadSettings() {
         longPressThresholdMs = prefs.longPressDuration
         Log.d(TAG, "Settings loaded: trigger=${prefs.thresholdTrigger}, reset=${prefs.thresholdReset}, longPress=${longPressThresholdMs}ms")
-        poleStableMs = prefs.polarityDebounceMs
-        poleChangeAbortMs = (prefs.polarityDebounceMs * 3).coerceAtLeast(30L)
+        midWindowLower = maxOf(prefs.polarityMin, 200f)
+        midWindowUpper = minOf(prefs.polarityMax, 500f).coerceAtLeast(midWindowLower + 10f)
+        strongLockThreshold = maxOf(prefs.polarityMax, 600f)
         energyThresholdSq = prefs.energySaveThreshold * prefs.energySaveThreshold
         energyHoldMs = prefs.energySaveHoldMs
         samplingHighDelayUs = hzToDelayUs(prefs.samplingHighRateHz, 20_000)
         samplingLowDelayUs = hzToDelayUs(prefs.samplingLowRateHz, 66_000)
+        autoZeroThreshold = prefs.autoZeroThreshold
+        autoZeroDurationMs = prefs.autoZeroDurationMs
         belowEnergySince = 0L
         resetBelowSince = 0L
+        autoZeroSince = 0L
+        autoZeroLatched = false
         if (magnetometer != null) {
             applySamplingDelay(samplingHighDelayUs)
         }
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        if (intent?.action == ACTION_TRIGGER_VOICE) {
-            triggerVoiceAssistant()
-            return START_STICKY
+        when (intent?.action) {
+            ACTION_TRIGGER_VOICE -> {
+                triggerVoiceAssistant()
+                return START_STICKY
+            }
+            ACTION_ZERO_SENSOR -> {
+                resetBaseline()
+                return START_STICKY
+            }
         }
 
         val notificationIntent = Intent(this, MainActivity::class.java)
@@ -169,7 +191,10 @@ class MagnetService : Service(), SensorEventListener {
 
     private fun initSensor() {
         sensorManager = getSystemService(Context.SENSOR_SERVICE) as SensorManager
-        magnetometer = sensorManager.getDefaultSensor(Sensor.TYPE_MAGNETIC_FIELD)
+        magnetometer = sensorManager.getDefaultSensor(Sensor.TYPE_MAGNETIC_FIELD_UNCALIBRATED)
+            ?: sensorManager.getDefaultSensor(Sensor.TYPE_MAGNETIC_FIELD).also {
+                logToUI("⚠️ 当前设备未提供未校准磁力计，已回退到系统校准数据")
+            }
         magnetometer?.let {
             sensorManager.registerListener(this, it, samplingHighDelayUs, samplingHighDelayUs)
             currentDelayUs = samplingHighDelayUs
@@ -217,65 +242,154 @@ class MagnetService : Service(), SensorEventListener {
     }
 
     override fun onSensorChanged(event: SensorEvent?) {
-        if (event?.sensor?.type != Sensor.TYPE_MAGNETIC_FIELD) return
+        if (event?.sensor?.type != Sensor.TYPE_MAGNETIC_FIELD && event?.sensor?.type != Sensor.TYPE_MAGNETIC_FIELD_UNCALIBRATED) return
 
         val now = System.currentTimeMillis()
-        val x = event.values[0]
-        val y = event.values[1]
-        val z = event.values[2]
+        lastRawX = event.values[0]
+        lastRawY = event.values[1]
+        lastRawZ = event.values[2]
+        val x = lastRawX - zeroOffsetX
+        val y = lastRawY - zeroOffsetY
+        val z = lastRawZ - zeroOffsetZ
         val magSq = x * x + y * y + z * z
         val magnitude = sqrt(magSq.toDouble()).toFloat()
 
         updateSamplingRate(magSq, now)
+        handleAutoZero(magnitude, now)
 
-        val candidate = if (x >= z) "N" else "S"
+        val poleForUi = updatePolarity(x, y, z, magnitude, now)
 
-        if (magnitude > prefs.polarityMax) {
-            if (lockedPole == "none") {
-                lockedPole = candidate
+        sendBroadcastToUI(x, y, z, magnitude, poleForUi)
+        processLogic(x, z, magnitude, now, poleForUi)
+    }
+
+    private fun resetBaseline() {
+        zeroOffsetX = lastRawX
+        zeroOffsetY = lastRawY
+        zeroOffsetZ = lastRawZ
+
+        activePole = "none"
+        lockedPole = "none"
+        sampleWindowStart = 0L
+        lastMagnitude = 0f
+        sampleWindow.clear()
+        triggerStartTime = 0L
+        isLongPressTriggered = false
+        resetBelowSince = 0L
+        belowEnergySince = 0L
+        autoZeroSince = 0L
+        autoZeroLatched = false
+        stopVibration()
+
+        lastUiMag = -1f
+        logToUI("✅ 已手动归零 (X=${zeroOffsetX.roundToInt()}, Y=${zeroOffsetY.roundToInt()}, Z=${zeroOffsetZ.roundToInt()})")
+    }
+
+    private fun handleAutoZero(magnitude: Float, now: Long) {
+        if (autoZeroDurationMs <= 0L) return
+
+        if (magnitude < autoZeroThreshold) {
+            if (autoZeroSince == 0L) autoZeroSince = now
+            if (!autoZeroLatched && now - autoZeroSince >= autoZeroDurationMs) {
+                resetBaseline()
+                autoZeroLatched = true
+                logToUI(
+                    "🧭 磁场 ${"%.1f".format(autoZeroDurationMs / 1000f)} 秒低于 ${autoZeroThreshold.roundToInt()} μT，已自动归零"
+                )
             }
-        } else if (magnitude < prefs.polarityMin) {
-            lockedPole = "none"
         } else {
-            if (candidate != poleCandidate) {
-                poleCandidate = candidate
-                poleCandidateSince = now
+            autoZeroSince = 0L
+            autoZeroLatched = false
+        }
+    }
+
+    private fun updatePolarity(x: Float, y: Float, z: Float, magnitude: Float, now: Long): String {
+        val instantPole = classifyPole(x, z)
+        val inMidWindow = magnitude in midWindowLower..midWindowUpper
+
+        if (lockedPole != "none" && magnitude >= strongLockThreshold) {
+            lastMagnitude = magnitude
+            return lockedPole
+        }
+
+        if (inMidWindow) {
+            if (sampleWindowStart == 0L || lastMagnitude < midWindowLower) {
+                sampleWindowStart = now
+                sampleWindow.clear()
             }
-            if (candidate != stablePole && (now - poleCandidateSince) >= poleStableMs) {
-                stablePole = candidate
+            sampleWindow.add(floatArrayOf(x, y, z))
+
+            val elapsed = now - sampleWindowStart
+            if ((elapsed >= 30L && (elapsed >= 80L || magnitude > midWindowUpper)) || sampleWindow.size >= 10) {
+                val pole = evaluateWindowPole()
+                if (pole != "none") {
+                    lockedPole = pole
+                }
+                sampleWindowStart = 0L
+                sampleWindow.clear()
+            }
+        } else {
+            if (sampleWindowStart > 0L && magnitude < midWindowLower) {
+                sampleWindowStart = 0L
+                sampleWindow.clear()
             }
         }
 
-        val poleForUi = if (lockedPole != "none") lockedPole else stablePole
+        lastMagnitude = magnitude
 
-        sendBroadcastToUI(x, y, z, magnitude, poleForUi)
-        processLogic(magnitude, z, now, poleForUi)
+        return when {
+            lockedPole != "none" -> lockedPole
+            magnitude >= prefs.polarityMin -> instantPole
+            else -> "none"
+        }
     }
+
+    private fun evaluateWindowPole(): String {
+        if (sampleWindow.size < 3) return "none"
+
+        val count = sampleWindow.size
+        val avgX = sampleWindow.sumOf { it[0].toDouble() } / count
+        val avgY = sampleWindow.sumOf { it[1].toDouble() } / count
+        val avgZ = sampleWindow.sumOf { it[2].toDouble() } / count
+
+        val varX = sampleWindow.sumOf {
+            val diff = it[0] - avgX
+            diff * diff
+        } / count
+        val varY = sampleWindow.sumOf {
+            val diff = it[1] - avgY
+            diff * diff
+        } / count
+        val varZ = sampleWindow.sumOf {
+            val diff = it[2] - avgZ
+            diff * diff
+        } / count
+        val maxVar = maxOf(varX, varY, varZ)
+
+        if (maxVar > 900.0) return "none"
+
+        return classifyPole(avgX.toFloat(), avgZ.toFloat())
+    }
+
+    private fun classifyPole(x: Float, z: Float): String = if (x >= z) "N" else "S"
 
     private fun sendBroadcastToUI(x: Float, y: Float, z: Float, mag: Float, pole: String) {
         val status = getStatusText()
-        val poleChanged = pole != lastUiPole
-        val statusChanged = status != lastUiStatus
-        val magChanged = abs(mag - lastUiMag) > 5f
-        val isFirst = lastUiMag < 0f
+        lastUiMag = mag
+        lastUiPole = pole
+        lastUiStatus = status
 
         if (!isScreenOn) return
 
-        if (isFirst || poleChanged || statusChanged || magChanged) {
-            lastUiMag = mag
-            lastUiPole = pole
-            lastUiStatus = status
-
-            val intent = Intent("com.example.magnetcontroller.UPDATE_UI")
-            intent.putExtra("x", x)
-            intent.putExtra("y", y)
-            intent.putExtra("z", z)
-            intent.putExtra("mag", mag)
-            intent.putExtra("pole", pole)
-            intent.putExtra("status", status)
-            intent.setPackage(packageName)
-            sendBroadcast(intent)
-        }
+        val intent = Intent("com.example.magnetcontroller.UPDATE_UI")
+        intent.putExtra("x", x)
+        intent.putExtra("y", y)
+        intent.putExtra("z", z)
+        intent.putExtra("mag", mag)
+        intent.putExtra("pole", pole)
+        intent.putExtra("status", status)
+        intent.setPackage(packageName)
+        sendBroadcast(intent)
     }
 
     private fun logToUI(message: String) {
@@ -294,14 +408,13 @@ class MagnetService : Service(), SensorEventListener {
         }
     }
 
-    private fun processLogic(magnitude: Float, zValue: Float, now: Long, poleForUi: String) {
+    private fun processLogic(x: Float, zValue: Float, magnitude: Float, now: Long, poleForUi: String) {
         val inCooldown = now - lastActionTime < actionCooldownMs
         if (triggerStartTime == 0L && inCooldown) return
 
         val poleInstant = when {
             poleForUi == "N" || poleForUi == "S" -> poleForUi
-            zValue >= 0 -> "N"
-            else -> "S"
+            else -> classifyPole(x, zValue)
         }
 
         val shouldTrigger = when (prefs.poleMode) {
@@ -317,10 +430,10 @@ class MagnetService : Service(), SensorEventListener {
                 triggerStartTime = now
                 isLongPressTriggered = false
                 startContinuousVibration()
-                activePole = if (poleForUi == "N" || poleForUi == "S") poleForUi else poleInstant
+                activePole = resolvePoleForAction(poleForUi, poleInstant)
             } else {
-                if (prefs.poleMode == "different" && (now - triggerStartTime) >= poleChangeAbortMs) {
-                    activePole = poleInstant
+                if (prefs.poleMode == "different") {
+                    activePole = resolvePoleForAction(poleForUi, poleInstant)
                 }
 
                 if (!isLongPressTriggered && (now - triggerStartTime >= longPressThresholdMs)) {
@@ -328,19 +441,10 @@ class MagnetService : Service(), SensorEventListener {
                     isContinuousVibrating = false
                     playDoubleBeep()
 
-                    val poleForAction = when {
-                        poleForUi == "N" || poleForUi == "S" -> poleForUi
-                        poleInstant == "N" || poleInstant == "S" -> poleInstant
-                        activePole == "N" || activePole == "S" -> activePole
-                        else -> stablePole
-                    }
+                    val poleForAction = resolvePoleForAction(poleForUi, poleInstant)
                     if (prefs.poleMode == "different" && (poleForAction != "N" && poleForAction != "S")) return
 
-                    val action = if (prefs.poleMode == "different") {
-                        if (poleForAction == "N") prefs.nLongAction else prefs.sLongAction
-                    } else {
-                        if (poleForAction == "N") prefs.nLongAction else prefs.sLongAction
-                    }
+                    val action = selectActionForPole(poleForAction, true)
 
                     performAction(action)
                     isLongPressTriggered = true
@@ -357,19 +461,10 @@ class MagnetService : Service(), SensorEventListener {
                 stopVibration()
 
                 if (!isLongPressTriggered) {
-                    val poleForAction = when {
-                        poleForUi == "N" || poleForUi == "S" -> poleForUi
-                        poleInstant == "N" || poleInstant == "S" -> poleInstant
-                        activePole == "N" || activePole == "S" -> activePole
-                        else -> stablePole
-                    }
+                    val poleForAction = resolvePoleForAction(poleForUi, poleInstant)
                     if (prefs.poleMode == "different" && (poleForAction != "N" && poleForAction != "S")) return
 
-                    val action = if (prefs.poleMode == "different") {
-                        if (poleForAction == "N") prefs.nShortAction else prefs.sShortAction
-                    } else {
-                        if (poleForAction == "N") prefs.nShortAction else prefs.sShortAction
-                    }
+                    val action = selectActionForPole(poleForAction, false)
 
                     performAction(action)
                     lastActionTime = now
@@ -378,6 +473,10 @@ class MagnetService : Service(), SensorEventListener {
                 triggerStartTime = 0L
                 isLongPressTriggered = false
                 activePole = "none"
+                lockedPole = "none"
+                sampleWindowStart = 0L
+                sampleWindow.clear()
+                lastMagnitude = magnitude
             }
         } else {
             resetBelowSince = 0L
@@ -402,6 +501,25 @@ class MagnetService : Service(), SensorEventListener {
         if (isContinuousVibrating) {
             getVibrator().cancel()
             isContinuousVibrating = false
+        }
+    }
+
+    private fun resolvePoleForAction(poleForUi: String, poleInstant: String): String {
+        return when {
+            lockedPole == "N" || lockedPole == "S" -> lockedPole
+            poleForUi == "N" || poleForUi == "S" -> poleForUi
+            poleInstant == "N" || poleInstant == "S" -> poleInstant
+            activePole == "N" || activePole == "S" -> activePole
+            else -> "none"
+        }
+    }
+
+    private fun selectActionForPole(pole: String, longPress: Boolean): String {
+        val actionPole = if (pole == "N") pole else "S"
+        return if (longPress) {
+            if (actionPole == "N") prefs.nLongAction else prefs.sLongAction
+        } else {
+            if (actionPole == "N") prefs.nShortAction else prefs.sShortAction
         }
     }
 
