@@ -66,6 +66,14 @@ class AppPreferences(context: Context) {
         get() = prefs.getLong("auto_zero_duration_ms", 4000L)
         set(value) = prefs.edit().putLong("auto_zero_duration_ms", value).apply()
 
+    var autoZeroStabilityBand: Float
+        get() = prefs.getFloat("auto_zero_stability_band", 20f)
+        set(value) = prefs.edit().putFloat("auto_zero_stability_band", value).apply()
+
+    var autoZeroStabilityDurationMs: Long
+        get() = prefs.getLong("auto_zero_stability_duration_ms", 4000L)
+        set(value) = prefs.edit().putLong("auto_zero_stability_duration_ms", value).apply()
+
     var allShortAction: String
         get() = getAction("all_short_action", "play_pause")
         set(value) = setAction("all_short_action", value)

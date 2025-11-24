@@ -45,6 +45,8 @@ class SettingsActivity : AppCompatActivity() {
         binding.etSamplingLowHz.setText(prefs.samplingLowRateHz.toString())
         binding.etAutoZeroThreshold.setText(prefs.autoZeroThreshold.toString())
         binding.etAutoZeroSeconds.setText(String.format(Locale.US, "%.1f", prefs.autoZeroDurationMs / 1000f))
+        binding.etAutoZeroStableSeconds.setText(String.format(Locale.US, "%.1f", prefs.autoZeroStabilityDurationMs / 1000f))
+        binding.etAutoZeroStableBand.setText(prefs.autoZeroStabilityBand.toString())
 
         when (prefs.poleMode) {
             "different" -> binding.rbDifferent.isChecked = true
@@ -82,6 +84,8 @@ class SettingsActivity : AppCompatActivity() {
         prefs.samplingLowRateHz = binding.etSamplingLowHz.text.toString().toFloatOrNull() ?: 15f
         prefs.autoZeroThreshold = binding.etAutoZeroThreshold.text.toString().toFloatOrNull() ?: 80f
         prefs.autoZeroDurationMs = ((binding.etAutoZeroSeconds.text.toString().toFloatOrNull() ?: 4f) * 1000).toLong()
+        prefs.autoZeroStabilityDurationMs = ((binding.etAutoZeroStableSeconds.text.toString().toFloatOrNull() ?: 4f) * 1000).toLong()
+        prefs.autoZeroStabilityBand = binding.etAutoZeroStableBand.text.toString().toFloatOrNull() ?: 20f
 
         prefs.poleMode = if (binding.rbDifferent.isChecked) "different" else "both"
 
