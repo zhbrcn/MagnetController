@@ -12,12 +12,12 @@ class SettingsActivity : AppCompatActivity() {
     private lateinit var binding: ActivitySettingsBinding
     private lateinit var prefs: AppPreferences
     private val actionOptions = listOf(
-        "play_pause" to "播放 / 暂停",
-        "next" to "下一曲",
-        "previous" to "上一曲",
-        "voice" to "语音助手",
-        "volume_up" to "音量 +",
-        "volume_down" to "音量 -"
+        ActionOption("play_pause", "播放 / 暂停"),
+        ActionOption("next", "下一曲"),
+        ActionOption("previous", "上一曲"),
+        ActionOption("voice", "语音助手"),
+        ActionOption("volume_up", "音量 +"),
+        ActionOption("volume_down", "音量 -")
     )
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -93,22 +93,25 @@ class SettingsActivity : AppCompatActivity() {
         val adapter = ArrayAdapter(
             this,
             android.R.layout.simple_spinner_item,
-            actionOptions.map { it.second }
+            actionOptions.map { it.label }
         ).also { it.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item) }
 
         listOf(binding.spNShort, binding.spNLong, binding.spSShort, binding.spSLong).forEach {
             it.adapter = adapter
+            it.prompt = "选择动作"
         }
     }
 
     private fun setSpinnerSelection(spinner: android.widget.Spinner, action: String) {
         val normalized = if (action == "media") "play_pause" else action
-        val index = actionOptions.indexOfFirst { it.first == normalized }.takeIf { it >= 0 } ?: 0
+        val index = actionOptions.indexOfFirst { it.key == normalized }.takeIf { it >= 0 } ?: 0
         spinner.setSelection(index)
     }
 
     private fun readActionFromSpinner(spinner: android.widget.Spinner): String {
         val position = spinner.selectedItemPosition
-        return actionOptions.getOrNull(position)?.first ?: "play_pause"
+        return actionOptions.getOrNull(position)?.key ?: "play_pause"
     }
+
+    private data class ActionOption(val key: String, val label: String)
 }

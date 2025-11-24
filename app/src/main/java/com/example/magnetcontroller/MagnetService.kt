@@ -23,7 +23,6 @@ import android.os.VibratorManager
 import android.util.Log
 import android.view.KeyEvent
 import androidx.core.app.NotificationCompat
-import kotlin.math.abs
 import kotlin.math.roundToInt
 import kotlin.math.sqrt
 
@@ -374,28 +373,21 @@ class MagnetService : Service(), SensorEventListener {
 
     private fun sendBroadcastToUI(x: Float, y: Float, z: Float, mag: Float, pole: String) {
         val status = getStatusText()
-        val poleChanged = pole != lastUiPole
-        val statusChanged = status != lastUiStatus
-        val magChanged = abs(mag - lastUiMag) > 5f
-        val isFirst = lastUiMag < 0f
+        lastUiMag = mag
+        lastUiPole = pole
+        lastUiStatus = status
 
         if (!isScreenOn) return
 
-        if (isFirst || poleChanged || statusChanged || magChanged) {
-            lastUiMag = mag
-            lastUiPole = pole
-            lastUiStatus = status
-
-            val intent = Intent("com.example.magnetcontroller.UPDATE_UI")
-            intent.putExtra("x", x)
-            intent.putExtra("y", y)
-            intent.putExtra("z", z)
-            intent.putExtra("mag", mag)
-            intent.putExtra("pole", pole)
-            intent.putExtra("status", status)
-            intent.setPackage(packageName)
-            sendBroadcast(intent)
-        }
+        val intent = Intent("com.example.magnetcontroller.UPDATE_UI")
+        intent.putExtra("x", x)
+        intent.putExtra("y", y)
+        intent.putExtra("z", z)
+        intent.putExtra("mag", mag)
+        intent.putExtra("pole", pole)
+        intent.putExtra("status", status)
+        intent.setPackage(packageName)
+        sendBroadcast(intent)
     }
 
     private fun logToUI(message: String) {
