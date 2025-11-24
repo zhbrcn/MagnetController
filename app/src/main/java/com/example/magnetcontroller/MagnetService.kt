@@ -500,9 +500,10 @@ class MagnetService : Service(), SensorEventListener {
     }
 
     private fun setBluetoothGateState(connected: Boolean, forceLog: Boolean = false) {
-        val stateChanged = lastBluetoothGateState != connected
-        bluetoothGateSatisfied = connected
-        if (!connected) {
+        val isConnected = connected
+        val stateChanged = lastBluetoothGateState != isConnected
+        bluetoothGateSatisfied = isConnected
+        if (!isConnected) {
             cancelActiveTrigger()
         }
 
@@ -511,7 +512,7 @@ class MagnetService : Service(), SensorEventListener {
                 logToUI("⏸ 未选择蓝牙设备，所有磁力触发已暂停")
             } else if (!isBluetoothConnectPermissionGranted()) {
                 logToUI("⏸ 缺少蓝牙连接权限，无法检查设备连接，已暂停触发")
-            } else if (connected) {
+            } else if (isConnected) {
                 val name = requiredBluetoothName.ifBlank { requiredBluetoothAddress }
                 logToUI("✅ 已连接到 $name，磁力触发已启用")
             } else {
@@ -520,7 +521,7 @@ class MagnetService : Service(), SensorEventListener {
             }
         }
 
-        lastBluetoothGateState = connected
+        lastBluetoothGateState = isConnected
     }
 
     private fun isRequiredDeviceConnectedNow(address: String): Boolean {
