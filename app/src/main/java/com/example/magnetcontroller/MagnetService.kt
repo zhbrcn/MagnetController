@@ -1,14 +1,19 @@
 package com.example.magnetcontroller
 
+import android.Manifest
 import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
 import android.app.Service
+import android.bluetooth.BluetoothDevice
+import android.bluetooth.BluetoothManager
+import android.bluetooth.BluetoothProfile
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
+import android.content.pm.PackageManager
 import android.hardware.Sensor
 import android.hardware.SensorEvent
 import android.hardware.SensorEventListener
@@ -16,7 +21,9 @@ import android.hardware.SensorManager
 import android.media.AudioManager
 import android.media.SoundPool
 import android.os.Build
+import android.os.Handler
 import android.os.IBinder
+import android.os.Looper
 import android.os.PowerManager
 import android.os.VibrationEffect
 import android.os.Vibrator
@@ -72,11 +79,31 @@ class MagnetService : Service(), SensorEventListener {
     private var resetBelowSince = 0L
     private var autoZeroThreshold = 80f
     private var autoZeroDurationMs = 4000L
+    private var autoZeroStabilityBand = 20f
+    private var autoZeroStabilityDurationMs = 4000L
     private var autoZeroSince = 0L
+    private var autoZeroStableStart = 0L
+    private var autoZeroStableMin = 0f
+    private var autoZeroStableMax = 0f
     private var autoZeroLatched = false
+    private var startupZeroPending = true
+    private var strongSuppressionThreshold = 1800f
+    private var strongSuppressionDurationMs = 400L
+    private var strongSuppressionJitter = 40f
+    private var strongSuppressionStart = 0L
+    private var strongSuppressionMin = 0f
+    private var strongSuppressionMax = 0f
+    private var strongSuppressionLatched = false
+    private var requiredBluetoothAddress: String = ""
+    private var requiredBluetoothName: String = ""
+    private var bluetoothGateSatisfied = false
+    private var lastBluetoothGateState: Boolean? = null
     private var usePolarity = true
     private var soundPool: SoundPool? = null
     private val soundIds = mutableMapOf<String, Int>()
+    private val soundReleaseHandler = Handler(Looper.getMainLooper())
+    private val soundReleaseDelayMs = 60_000L
+    private val soundReleaseRunnable = Runnable { releaseSoundEffects() }
     private val longPressPattern = longArrayOf(0, 200, 100, 200)
     private val CHANNEL_ID = "MagnetServiceChannel"
     private val TAG = "MagnetService"
@@ -99,11 +126,22 @@ class MagnetService : Service(), SensorEventListener {
         }
     }
 
+    private val bluetoothReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context?, intent: Intent?) {
+            val device = extractBluetoothDeviceFromIntent(intent) ?: return
+            if (!device.address.equals(requiredBluetoothAddress, ignoreCase = true)) return
+
+            when (intent?.action) {
+                BluetoothDevice.ACTION_ACL_CONNECTED -> setBluetoothGateState(true)
+                BluetoothDevice.ACTION_ACL_DISCONNECTED, BluetoothDevice.ACTION_ACL_DISCONNECT_REQUESTED -> setBluetoothGateState(false)
+            }
+        }
+    }
+
     override fun onCreate() {
         super.onCreate()
         prefs = AppPreferences(this)
         loadSettings()
-        initSoundEffects()
         createNotificationChannel()
         initSensor()
 
@@ -124,6 +162,17 @@ class MagnetService : Service(), SensorEventListener {
         } else {
             registerReceiver(screenReceiver, screenFilter)
         }
+
+        val bluetoothFilter = IntentFilter().apply {
+            addAction(BluetoothDevice.ACTION_ACL_CONNECTED)
+            addAction(BluetoothDevice.ACTION_ACL_DISCONNECT_REQUESTED)
+            addAction(BluetoothDevice.ACTION_ACL_DISCONNECTED)
+        }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            registerReceiver(bluetoothReceiver, bluetoothFilter, Context.RECEIVER_NOT_EXPORTED)
+        } else {
+            registerReceiver(bluetoothReceiver, bluetoothFilter)
+        }
     }
 
     private fun loadSettings() {
@@ -138,11 +187,26 @@ class MagnetService : Service(), SensorEventListener {
         samplingLowDelayUs = hzToDelayUs(prefs.samplingLowRateHz, 66_000)
         autoZeroThreshold = prefs.autoZeroThreshold
         autoZeroDurationMs = prefs.autoZeroDurationMs
+        autoZeroStabilityBand = prefs.autoZeroStabilityBand
+        autoZeroStabilityDurationMs = prefs.autoZeroStabilityDurationMs
+        strongSuppressionThreshold = prefs.strongSuppressionThreshold
+        strongSuppressionDurationMs = prefs.strongSuppressionDurationMs
+        strongSuppressionJitter = prefs.strongSuppressionJitter
+        requiredBluetoothAddress = prefs.bluetoothDeviceAddress
+        requiredBluetoothName = prefs.bluetoothDeviceName
         usePolarity = prefs.poleMode == "different"
         belowEnergySince = 0L
         resetBelowSince = 0L
         autoZeroSince = 0L
+        autoZeroStableStart = 0L
+        autoZeroStableMin = 0f
+        autoZeroStableMax = 0f
         autoZeroLatched = false
+        strongSuppressionStart = 0L
+        strongSuppressionLatched = false
+        strongSuppressionMin = 0f
+        strongSuppressionMax = 0f
+        refreshBluetoothGateState(initial = true)
         if (!usePolarity) {
             activePole = "none"
             lockedPole = "none"
@@ -163,6 +227,8 @@ class MagnetService : Service(), SensorEventListener {
                 return START_STICKY
             }
         }
+
+        startupZeroPending = true
 
         val notificationIntent = Intent(this, MainActivity::class.java)
         val pendingIntent = PendingIntent.getActivity(this, 0, notificationIntent, PendingIntent.FLAG_IMMUTABLE)
@@ -208,6 +274,9 @@ class MagnetService : Service(), SensorEventListener {
         magnetometer?.let {
             sensorManager.registerListener(this, it, samplingHighDelayUs, samplingHighDelayUs)
             currentDelayUs = samplingHighDelayUs
+        } ?: run {
+            logToUI("❌ 无法获取磁力计传感器，已停止监听")
+            stopSelf()
         }
     }
 
@@ -217,6 +286,7 @@ class MagnetService : Service(), SensorEventListener {
         sensorManager.unregisterListener(this, magnetometer)
         sensorManager.registerListener(this, magnetometer, delayUs, delayUs)
         currentDelayUs = delayUs
+        logToUI("⚙️ 采样频率已切换为 ${"%.1f".format(1_000_000f / delayUs)} Hz")
     }
 
     private fun hzToDelayUs(hz: Float, defaultDelayUs: Int): Int {
@@ -248,6 +318,7 @@ class MagnetService : Service(), SensorEventListener {
         sensorManager.unregisterListener(this)
         unregisterReceiver(settingsReceiver)
         unregisterReceiver(screenReceiver)
+        unregisterReceiver(bluetoothReceiver)
         stopVibration()
         releaseSoundEffects()
     }
@@ -259,6 +330,12 @@ class MagnetService : Service(), SensorEventListener {
         lastRawX = event.values[0]
         lastRawY = event.values[1]
         lastRawZ = event.values[2]
+
+        if (startupZeroPending) {
+            resetBaseline("✅ 应用启动自动归零")
+            startupZeroPending = false
+        }
+
         val x = lastRawX - zeroOffsetX
         val y = lastRawY - zeroOffsetY
         val z = lastRawZ - zeroOffsetZ
@@ -271,10 +348,25 @@ class MagnetService : Service(), SensorEventListener {
         val poleForUi = if (usePolarity) updatePolarity(x, y, z, magnitude, now) else "all"
 
         sendBroadcastToUI(x, y, z, magnitude, poleForUi)
+        if (!isTriggerAllowed()) return
+
         processLogic(x, z, magnitude, now, poleForUi)
     }
 
-    private fun resetBaseline() {
+    private fun isTriggerAllowed(): Boolean {
+        if (requiredBluetoothAddress.isBlank()) {
+            setBluetoothGateState(false)
+            return false
+        }
+
+        if (!bluetoothGateSatisfied) {
+            refreshBluetoothGateState()
+        }
+
+        return bluetoothGateSatisfied
+    }
+
+    private fun resetBaseline(logMessage: String = "✅ 已手动归零") {
         zeroOffsetX = lastRawX
         zeroOffsetY = lastRawY
         zeroOffsetZ = lastRawZ
@@ -289,28 +381,190 @@ class MagnetService : Service(), SensorEventListener {
         resetBelowSince = 0L
         belowEnergySince = 0L
         autoZeroSince = 0L
+        autoZeroStableStart = 0L
+        autoZeroStableMin = 0f
+        autoZeroStableMax = 0f
         autoZeroLatched = false
+        strongSuppressionStart = 0L
+        strongSuppressionLatched = false
+        strongSuppressionMin = 0f
+        strongSuppressionMax = 0f
         stopVibration()
 
         lastUiMag = -1f
-        logToUI("✅ 已手动归零 (X=${zeroOffsetX.roundToInt()}, Y=${zeroOffsetY.roundToInt()}, Z=${zeroOffsetZ.roundToInt()})")
+        logToUI("$logMessage (X=${zeroOffsetX.roundToInt()}, Y=${zeroOffsetY.roundToInt()}, Z=${zeroOffsetZ.roundToInt()})")
     }
 
     private fun handleAutoZero(magnitude: Float, now: Long) {
-        if (autoZeroDurationMs <= 0L) return
+        if (autoZeroDurationMs <= 0L && autoZeroStabilityDurationMs <= 0L) return
 
-        if (magnitude < autoZeroThreshold) {
-            if (autoZeroSince == 0L) autoZeroSince = now
-            if (!autoZeroLatched && now - autoZeroSince >= autoZeroDurationMs) {
-                resetBaseline()
-                autoZeroLatched = true
-                logToUI(
-                    "🧭 磁场 ${"%.1f".format(autoZeroDurationMs / 1000f)} 秒低于 ${autoZeroThreshold.roundToInt()} μT，已自动归零"
-                )
+        val rearmCeiling = autoZeroThreshold + autoZeroStabilityBand
+        if (autoZeroLatched) {
+            if (magnitude > rearmCeiling) {
+                autoZeroLatched = false
+            } else {
+                return
+            }
+        }
+
+        var zeroReason: String? = null
+
+        if (autoZeroDurationMs > 0L) {
+            if (magnitude < autoZeroThreshold) {
+                if (autoZeroSince == 0L) autoZeroSince = now
+                if (now - autoZeroSince >= autoZeroDurationMs) {
+                    zeroReason = "磁场连续低于 ${autoZeroThreshold.roundToInt()} μT 持续 ${"%.1f".format(autoZeroDurationMs / 1000f)} 秒"
+                }
+            } else {
+                autoZeroSince = 0L
+            }
+        }
+
+        if (autoZeroStabilityDurationMs > 0L) {
+            if (autoZeroStableStart == 0L) {
+                autoZeroStableStart = now
+                autoZeroStableMin = magnitude
+                autoZeroStableMax = magnitude
+            } else {
+                autoZeroStableMin = minOf(autoZeroStableMin, magnitude)
+                autoZeroStableMax = maxOf(autoZeroStableMax, magnitude)
+            }
+
+            val withinBand = autoZeroStableMax - autoZeroStableMin <= autoZeroStabilityBand
+            if (withinBand) {
+                if (zeroReason == null && now - autoZeroStableStart >= autoZeroStabilityDurationMs) {
+                    zeroReason = "磁场波动维持在 ±${autoZeroStabilityBand.roundToInt()} μT 内持续 ${"%.1f".format(autoZeroStabilityDurationMs / 1000f)} 秒"
+                }
+            } else {
+                autoZeroStableStart = now
+                autoZeroStableMin = magnitude
+                autoZeroStableMax = magnitude
             }
         } else {
+            autoZeroStableStart = 0L
+            autoZeroStableMin = magnitude
+            autoZeroStableMax = magnitude
+        }
+
+        if (zeroReason != null) {
+            resetBaseline("🧭 $zeroReason，已自动归零")
+            autoZeroLatched = true
             autoZeroSince = 0L
-            autoZeroLatched = false
+            autoZeroStableStart = 0L
+        }
+    }
+
+    private fun handleStrongSuppression(magnitude: Float, now: Long): Boolean {
+        if (strongSuppressionThreshold <= 0f || strongSuppressionDurationMs <= 0L) return false
+
+        if (magnitude > strongSuppressionThreshold) {
+            if (strongSuppressionStart == 0L) {
+                strongSuppressionStart = now
+                strongSuppressionMin = magnitude
+                strongSuppressionMax = magnitude
+            } else {
+                strongSuppressionMin = minOf(strongSuppressionMin, magnitude)
+                strongSuppressionMax = maxOf(strongSuppressionMax, magnitude)
+            }
+
+            val jitter = strongSuppressionMax - strongSuppressionMin
+            if (jitter <= strongSuppressionJitter && now - strongSuppressionStart >= strongSuppressionDurationMs) {
+                if (!strongSuppressionLatched) {
+                    strongSuppressionLatched = true
+                    cancelActiveTrigger()
+                    lastActionTime = now
+                    logToUI("⚠️ 强磁稳定贴合，已忽略本次触发")
+                    playPressFailureChime()
+                }
+                return true
+            }
+        } else {
+            if (magnitude < strongSuppressionThreshold - strongSuppressionJitter) {
+                strongSuppressionLatched = false
+            }
+            strongSuppressionStart = 0L
+            strongSuppressionMin = magnitude
+            strongSuppressionMax = magnitude
+        }
+
+        return false
+    }
+
+    private fun refreshBluetoothGateState(initial: Boolean = false) {
+        val connected = if (requiredBluetoothAddress.isBlank()) {
+            false
+        } else {
+            isRequiredDeviceConnectedNow(requiredBluetoothAddress)
+        }
+        setBluetoothGateState(connected, initial)
+    }
+
+    private fun setBluetoothGateState(connected: Boolean, forceLog: Boolean = false) {
+        val stateChanged = lastBluetoothGateState != connected
+        bluetoothGateSatisfied = connected
+        if (!connected) {
+            cancelActiveTrigger()
+        }
+
+        if (forceLog || stateChanged) {
+            if (requiredBluetoothAddress.isBlank()) {
+                logToUI("⏸ 未选择蓝牙设备，所有磁力触发已暂停")
+            } else if (!isBluetoothConnectPermissionGranted()) {
+                logToUI("⏸ 缺少蓝牙连接权限，无法检查设备连接，已暂停触发")
+            } else if (connected) {
+                val name = requiredBluetoothName.ifBlank { requiredBluetoothAddress }
+                logToUI("✅ 已连接到 $name，磁力触发已启用")
+            } else {
+                val name = requiredBluetoothName.ifBlank { requiredBluetoothAddress }
+                logToUI("⏸ 未检测到所选设备（$name）的连接，触发已暂停")
+            }
+        }
+
+        lastBluetoothGateState = connected
+    }
+
+    private fun isRequiredDeviceConnectedNow(address: String): Boolean {
+        if (!isBluetoothConnectPermissionGranted()) return false
+        val manager = getSystemService(Context.BLUETOOTH_SERVICE) as BluetoothManager? ?: return false
+
+        val profiles = listOf(
+            BluetoothProfile.HEADSET,
+            BluetoothProfile.A2DP,
+            BluetoothProfile.GATT
+        )
+
+        profiles.forEach { profile ->
+            try {
+                if (manager.getConnectedDevices(profile).any { it.address.equals(address, ignoreCase = true) }) {
+                    return true
+                }
+            } catch (se: SecurityException) {
+                Log.w(TAG, "蓝牙连接状态检查失败: ${se.message}")
+                return false
+            }
+        }
+
+        return false
+    }
+
+    private fun isBluetoothConnectPermissionGranted(): Boolean {
+        return Build.VERSION.SDK_INT < Build.VERSION_CODES.S ||
+            checkSelfPermission(Manifest.permission.BLUETOOTH_CONNECT) == PackageManager.PERMISSION_GRANTED
+    }
+
+    private fun extractBluetoothDeviceFromIntent(intent: Intent?): BluetoothDevice? {
+        if (intent == null) return null
+        return try {
+            val device: BluetoothDevice? = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                intent.getParcelableExtra(BluetoothDevice.EXTRA_DEVICE, BluetoothDevice::class.java)
+            } else {
+                @Suppress("DEPRECATION")
+                intent.getParcelableExtra(BluetoothDevice.EXTRA_DEVICE) as? BluetoothDevice
+            }
+            device
+        } catch (e: Exception) {
+            Log.w(TAG, "无法解析蓝牙广播设备: ${e.message}")
+            null
         }
     }
 
@@ -420,6 +674,8 @@ class MagnetService : Service(), SensorEventListener {
     }
 
     private fun processLogic(x: Float, zValue: Float, magnitude: Float, now: Long, poleForUi: String) {
+        if (handleStrongSuppression(magnitude, now)) return
+
         val inCooldown = now - lastActionTime < actionCooldownMs
         if (triggerStartTime == 0L && inCooldown) return
 
@@ -437,6 +693,7 @@ class MagnetService : Service(), SensorEventListener {
             if (triggerStartTime == 0L) {
                 triggerStartTime = now
                 isLongPressTriggered = false
+                playPressSound()
                 startContinuousVibration()
                 activePole = if (usePolarity) resolvePoleForAction(poleForUi, poleInstant) else "all"
             } else {
@@ -547,10 +804,21 @@ class MagnetService : Service(), SensorEventListener {
         }
     }
 
+    private fun cancelActiveTrigger() {
+        triggerStartTime = 0L
+        isLongPressTriggered = false
+        stopVibration()
+        isContinuousVibrating = false
+        activePole = "none"
+        lockedPole = "none"
+        sampleWindowStart = 0L
+        sampleWindow.clear()
+    }
+
     private fun performAction(action: String) {
         playActionSound(action)
         when (action) {
-            "voice" -> triggerVoiceAssistant()
+            "voice" -> triggerVoiceAssistant(alreadyPlayedSound = true)
             "next" -> triggerMediaKey(KeyEvent.KEYCODE_MEDIA_NEXT, "下一曲")
             "previous" -> triggerMediaKey(KeyEvent.KEYCODE_MEDIA_PREVIOUS, "上一曲")
             "volume_up" -> adjustVolume(AudioManager.ADJUST_RAISE, "音量 +")
@@ -560,15 +828,20 @@ class MagnetService : Service(), SensorEventListener {
         }
     }
 
-    private fun initSoundEffects() {
-        soundPool = SoundPool.Builder().setMaxStreams(1).build().also { pool ->
-            loadSound(pool, "toggle")
-            loadSound(pool, "prev")
-            loadSound(pool, "next")
-            loadSound(pool, "volup")
-            loadSound(pool, "voldown")
-            loadSound(pool, "assistant")
-        }
+    private fun ensureSoundEffects(): SoundPool? {
+        soundPool?.let { return it }
+
+        val pool = SoundPool.Builder().setMaxStreams(1).build()
+        soundPool = pool
+        soundIds.clear()
+        loadSound(pool, "toggle")
+        loadSound(pool, "prev")
+        loadSound(pool, "next")
+        loadSound(pool, "volup")
+        loadSound(pool, "voldown")
+        loadSound(pool, "assistant")
+        loadSound(pool, "press")
+        return pool
     }
 
     private fun loadSound(pool: SoundPool, name: String) {
@@ -593,32 +866,56 @@ class MagnetService : Service(), SensorEventListener {
             else -> null
         }
 
-        val pool = soundPool ?: return
+        playSound(key)
+    }
+
+    private fun playPressSound() {
+        playSound("press")
+    }
+
+    private fun playPressFailureChime() {
+        val intervals = listOf(0L, 150L, 300L)
+        intervals.forEach { delay ->
+            soundReleaseHandler.postDelayed({ playPressSound() }, delay)
+        }
+    }
+
+    private fun playSound(key: String?) {
+        val pool = ensureSoundEffects() ?: return
         val soundId = key?.let { soundIds[it] } ?: return
         pool.play(soundId, 1f, 1f, 1, 0, 1f)
+        scheduleSoundRelease()
     }
 
     private fun releaseSoundEffects() {
+        soundReleaseHandler.removeCallbacks(soundReleaseRunnable)
         soundPool?.release()
         soundPool = null
         soundIds.clear()
     }
 
-    private fun triggerVoiceAssistant() {
+    private fun scheduleSoundRelease() {
+        soundReleaseHandler.removeCallbacks(soundReleaseRunnable)
+        soundReleaseHandler.postDelayed(soundReleaseRunnable, soundReleaseDelayMs)
+    }
+
+    private fun triggerVoiceAssistant(alreadyPlayedSound: Boolean = false) {
+        if (!alreadyPlayedSound) {
+            playSound("assistant")
+        }
+
         if (AccessibilityVoiceService.requestVoice(this)) {
             logToUI("▶️ 正在通过无障碍服务唤醒助手...")
             return
         }
 
         acquireWakeLock(4000)
-
-        logToUI("▶️ 尝试方案：VOICE_COMMAND")
-        if (tryVoiceCommandGeneric()) {
-            logToUI("✅ 成功：VOICE_COMMAND")
-        } else {
-            logToUI("⚠️ VOICE_COMMAND 失败，请检查后台弹窗/默认助手权限")
+        try {
+            logToUI("⚠️ 无障碍服务未启用，无法通过系统助手唤醒；已为你打开辅助功能设置")
+            AccessibilityVoiceService.requestVoice(this)
+        } finally {
+            releaseWakeLock()
         }
-        releaseWakeLock()
     }
 
     private fun tryPlayPauseLongPress(): Boolean {
