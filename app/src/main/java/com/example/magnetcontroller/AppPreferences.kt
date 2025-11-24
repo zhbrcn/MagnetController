@@ -34,10 +34,6 @@ class AppPreferences(context: Context) {
         get() = prefs.getFloat("polarity_max", 2000f)
         set(value) = prefs.edit().putFloat("polarity_max", value).apply()
 
-    var polarityDebounceMs: Long
-        get() = prefs.getLong("polarity_debounce_ms", 50L)
-        set(value) = prefs.edit().putLong("polarity_debounce_ms", value).apply()
-
     var thresholdReset: Float
         get() = prefs.getFloat("threshold_reset", 300f)
         set(value) = prefs.edit().putFloat("threshold_reset", value).apply()

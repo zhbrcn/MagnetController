@@ -147,22 +147,7 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:inputType="numberDecimal"
-                android:hint="例如：2000"
-                android:layout_marginBottom="12dp" />
-
-            <TextView
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:text="极性防抖时间 (ms)"
-                android:textColor="#374151"
-                android:textSize="14sp" />
-
-            <EditText
-                android:id="@+id/etPolarityDebounce"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:inputType="number"
-                android:hint="例如：50"
+                android:hint="例如：600 或 1200"
                 android:layout_marginBottom="12dp" />
         </LinearLayout>
 

@@ -38,7 +38,6 @@ class SettingsActivity : AppCompatActivity() {
         binding.etLongPressMs.setText(prefs.longPressDuration.toString())
         binding.etPolarityMin.setText(prefs.polarityMin.toInt().toString())
         binding.etPolarityMax.setText(prefs.polarityMax.toInt().toString())
-        binding.etPolarityDebounce.setText(prefs.polarityDebounceMs.toString())
         binding.etEnergyThreshold.setText(prefs.energySaveThreshold.toInt().toString())
         binding.etEnergyHoldMs.setText(prefs.energySaveHoldMs.toString())
         binding.etSamplingHighHz.setText(prefs.samplingHighRateHz.toString())
@@ -68,7 +67,6 @@ class SettingsActivity : AppCompatActivity() {
         prefs.longPressDuration = binding.etLongPressMs.text.toString().toLongOrNull() ?: 1500L
         prefs.polarityMin = binding.etPolarityMin.text.toString().toFloatOrNull() ?: 50f
         prefs.polarityMax = binding.etPolarityMax.text.toString().toFloatOrNull() ?: 2000f
-        prefs.polarityDebounceMs = binding.etPolarityDebounce.text.toString().toLongOrNull() ?: 50L
         prefs.energySaveThreshold = binding.etEnergyThreshold.text.toString().toFloatOrNull() ?: 100f
         prefs.energySaveHoldMs = binding.etEnergyHoldMs.text.toString().toLongOrNull() ?: 2000L
         prefs.samplingHighRateHz = binding.etSamplingHighHz.text.toString().toFloatOrNull() ?: 50f

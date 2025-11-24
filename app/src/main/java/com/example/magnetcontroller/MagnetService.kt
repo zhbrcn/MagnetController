@@ -46,11 +46,11 @@ class MagnetService : Service(), SensorEventListener {
     private var triggerStartTime = 0L
     private var isLongPressTriggered = false
     private var isContinuousVibrating = false
-    private var stablePole: String = "none"
-    private var poleCandidate: String = "none"
-    private var poleCandidateSince = 0L
     private var activePole: String = "none"
     private var lockedPole: String = "none"
+    private var sampleWindowStart = 0L
+    private var lastMagnitude = 0f
+    private val sampleWindow = mutableListOf<FloatArray>()
     private var lastActionTime = 0L
     private var wakeLock: PowerManager.WakeLock? = null
     private var lastUiMag = -1f
@@ -60,8 +60,9 @@ class MagnetService : Service(), SensorEventListener {
 
     private val actionCooldownMs = 900L
     private var longPressThresholdMs = 1500L
-    private var poleStableMs = 10L
-    private var poleChangeAbortMs = 50L
+    private var midWindowLower = 200f
+    private var midWindowUpper = 500f
+    private var strongLockThreshold = 600f
     private var energyThresholdSq = 100f * 100f
     private var energyHoldMs = 2000L
     private var samplingHighDelayUs = 20_000
@@ -124,8 +125,9 @@ class MagnetService : Service(), SensorEventListener {
     private fun loadSettings() {
         longPressThresholdMs = prefs.longPressDuration
         Log.d(TAG, "Settings loaded: trigger=${prefs.thresholdTrigger}, reset=${prefs.thresholdReset}, longPress=${longPressThresholdMs}ms")
-        poleStableMs = prefs.polarityDebounceMs
-        poleChangeAbortMs = (prefs.polarityDebounceMs * 3).coerceAtLeast(30L)
+        midWindowLower = maxOf(prefs.polarityMin, 200f)
+        midWindowUpper = minOf(prefs.polarityMax, 500f).coerceAtLeast(midWindowLower + 10f)
+        strongLockThreshold = maxOf(prefs.polarityMax, 600f)
         energyThresholdSq = prefs.energySaveThreshold * prefs.energySaveThreshold
         energyHoldMs = prefs.energySaveHoldMs
         samplingHighDelayUs = hzToDelayUs(prefs.samplingHighRateHz, 20_000)
@@ -256,28 +258,118 @@ class MagnetService : Service(), SensorEventListener {
         updateSamplingRate(magSq, now)
         handleAutoZero(magnitude, now)
 
-        val candidate = if (x >= z) "N" else "S"
-
-        if (magnitude > prefs.polarityMax) {
-            if (lockedPole == "none") {
-                lockedPole = candidate
-            }
-        } else if (magnitude < prefs.polarityMin) {
-            lockedPole = "none"
-        } else {
-            if (candidate != poleCandidate) {
-                poleCandidate = candidate
-                poleCandidateSince = now
-            }
-            if (candidate != stablePole && (now - poleCandidateSince) >= poleStableMs) {
-                stablePole = candidate
-            }
-        }
-
-        val poleForUi = if (lockedPole != "none") lockedPole else stablePole
+        val poleForUi = updatePolarity(x, y, z, magnitude, now)
 
         sendBroadcastToUI(x, y, z, magnitude, poleForUi)
         processLogic(magnitude, z, now, poleForUi)
+    }
+
+    private fun zeroBaseline() {
+        zeroOffsetX = lastRawX
+        zeroOffsetY = lastRawY
+        zeroOffsetZ = lastRawZ
+
+        activePole = "none"
+        lockedPole = "none"
+        sampleWindowStart = 0L
+        lastMagnitude = 0f
+        sampleWindow.clear()
+        triggerStartTime = 0L
+        isLongPressTriggered = false
+        resetBelowSince = 0L
+        belowEnergySince = 0L
+        autoZeroSince = 0L
+        autoZeroLatched = false
+        stopVibration()
+
+        lastUiMag = -1f
+        logToUI("✅ 已手动归零 (X=${zeroOffsetX.roundToInt()}, Y=${zeroOffsetY.roundToInt()}, Z=${zeroOffsetZ.roundToInt()})")
+    }
+
+    private fun handleAutoZero(magnitude: Float, now: Long) {
+        if (autoZeroDurationMs <= 0L) return
+
+        if (magnitude < autoZeroThreshold) {
+            if (autoZeroSince == 0L) autoZeroSince = now
+            if (!autoZeroLatched && now - autoZeroSince >= autoZeroDurationMs) {
+                zeroBaseline()
+                autoZeroLatched = true
+                logToUI(
+                    "🧭 磁场 ${"%.1f".format(autoZeroDurationMs / 1000f)} 秒低于 ${autoZeroThreshold.roundToInt()} μT，已自动归零"
+                )
+            }
+        } else {
+            autoZeroSince = 0L
+            autoZeroLatched = false
+        }
+    }
+
+    private fun updatePolarity(x: Float, y: Float, z: Float, magnitude: Float, now: Long): String {
+        val instantPole = if (x >= z) "N" else "S"
+        val inMidWindow = magnitude in midWindowLower..midWindowUpper
+
+        if (lockedPole != "none" && magnitude >= strongLockThreshold) {
+            lastMagnitude = magnitude
+            return lockedPole
+        }
+
+        if (inMidWindow) {
+            if (sampleWindowStart == 0L || lastMagnitude < midWindowLower) {
+                sampleWindowStart = now
+                sampleWindow.clear()
+            }
+            sampleWindow.add(floatArrayOf(x, y, z))
+
+            val elapsed = now - sampleWindowStart
+            if ((elapsed >= 30L && (elapsed >= 80L || magnitude > midWindowUpper)) || sampleWindow.size >= 10) {
+                val pole = evaluateWindowPole()
+                if (pole != "none") {
+                    lockedPole = pole
+                }
+                sampleWindowStart = 0L
+                sampleWindow.clear()
+            }
+        } else {
+            if (sampleWindowStart > 0L && magnitude < midWindowLower) {
+                sampleWindowStart = 0L
+                sampleWindow.clear()
+            }
+        }
+
+        lastMagnitude = magnitude
+
+        return when {
+            lockedPole != "none" -> lockedPole
+            magnitude >= prefs.polarityMin -> instantPole
+            else -> "none"
+        }
+    }
+
+    private fun evaluateWindowPole(): String {
+        if (sampleWindow.size < 3) return "none"
+
+        val count = sampleWindow.size
+        val avgX = sampleWindow.sumOf { it[0].toDouble() } / count
+        val avgY = sampleWindow.sumOf { it[1].toDouble() } / count
+        val avgZ = sampleWindow.sumOf { it[2].toDouble() } / count
+
+        val varX = sampleWindow.sumOf {
+            val diff = it[0] - avgX
+            diff * diff
+        } / count
+        val varY = sampleWindow.sumOf {
+            val diff = it[1] - avgY
+            diff * diff
+        } / count
+        val varZ = sampleWindow.sumOf {
+            val diff = it[2] - avgZ
+            diff * diff
+        } / count
+        val maxVar = maxOf(varX, varY, varZ)
+
+        if (maxVar > 900.0) return "none"
+
+        return if (avgX >= avgZ) "N" else "S"
     }
 
     private fun zeroBaseline() {
@@ -385,10 +477,18 @@ class MagnetService : Service(), SensorEventListener {
                 triggerStartTime = now
                 isLongPressTriggered = false
                 startContinuousVibration()
-                activePole = if (poleForUi == "N" || poleForUi == "S") poleForUi else poleInstant
+                activePole = when {
+                    lockedPole == "N" || lockedPole == "S" -> lockedPole
+                    poleForUi == "N" || poleForUi == "S" -> poleForUi
+                    else -> poleInstant
+                }
             } else {
-                if (prefs.poleMode == "different" && (now - triggerStartTime) >= poleChangeAbortMs) {
-                    activePole = poleInstant
+                if (prefs.poleMode == "different") {
+                    activePole = when {
+                        lockedPole == "N" || lockedPole == "S" -> lockedPole
+                        poleForUi == "N" || poleForUi == "S" -> poleForUi
+                        else -> poleInstant
+                    }
                 }
 
                 if (!isLongPressTriggered && (now - triggerStartTime >= longPressThresholdMs)) {
@@ -397,10 +497,11 @@ class MagnetService : Service(), SensorEventListener {
                     playDoubleBeep()
 
                     val poleForAction = when {
+                        lockedPole == "N" || lockedPole == "S" -> lockedPole
                         poleForUi == "N" || poleForUi == "S" -> poleForUi
                         poleInstant == "N" || poleInstant == "S" -> poleInstant
                         activePole == "N" || activePole == "S" -> activePole
-                        else -> stablePole
+                        else -> "none"
                     }
                     if (prefs.poleMode == "different" && (poleForAction != "N" && poleForAction != "S")) return
 
@@ -426,10 +527,11 @@ class MagnetService : Service(), SensorEventListener {
 
                 if (!isLongPressTriggered) {
                     val poleForAction = when {
+                        lockedPole == "N" || lockedPole == "S" -> lockedPole
                         poleForUi == "N" || poleForUi == "S" -> poleForUi
                         poleInstant == "N" || poleInstant == "S" -> poleInstant
                         activePole == "N" || activePole == "S" -> activePole
-                        else -> stablePole
+                        else -> "none"
                     }
                     if (prefs.poleMode == "different" && (poleForAction != "N" && poleForAction != "S")) return
 
@@ -446,6 +548,10 @@ class MagnetService : Service(), SensorEventListener {
                 triggerStartTime = 0L
                 isLongPressTriggered = false
                 activePole = "none"
+                lockedPole = "none"
+                sampleWindowStart = 0L
+                sampleWindow.clear()
+                lastMagnitude = magnitude
             }
         } else {
             resetBelowSince = 0L
