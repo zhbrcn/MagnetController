@@ -30,11 +30,18 @@ import kotlin.math.sqrt
 class MagnetService : Service(), SensorEventListener {
     companion object {
         const val ACTION_TRIGGER_VOICE = "com.example.magnetcontroller.TRIGGER_VOICE"
+        const val ACTION_ZERO_SENSOR = "com.example.magnetcontroller.ZERO_SENSOR"
     }
 
     private lateinit var sensorManager: SensorManager
     private var magnetometer: Sensor? = null
     private lateinit var prefs: AppPreferences
+    private var zeroOffsetX = 0f
+    private var zeroOffsetY = 0f
+    private var zeroOffsetZ = 0f
+    private var lastRawX = 0f
+    private var lastRawY = 0f
+    private var lastRawZ = 0f
 
     private var triggerStartTime = 0L
     private var isLongPressTriggered = false
@@ -127,9 +134,15 @@ class MagnetService : Service(), SensorEventListener {
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        if (intent?.action == ACTION_TRIGGER_VOICE) {
-            triggerVoiceAssistant()
-            return START_STICKY
+        when (intent?.action) {
+            ACTION_TRIGGER_VOICE -> {
+                triggerVoiceAssistant()
+                return START_STICKY
+            }
+            ACTION_ZERO_SENSOR -> {
+                zeroBaseline()
+                return START_STICKY
+            }
         }
 
         val notificationIntent = Intent(this, MainActivity::class.java)
@@ -169,7 +182,10 @@ class MagnetService : Service(), SensorEventListener {
 
     private fun initSensor() {
         sensorManager = getSystemService(Context.SENSOR_SERVICE) as SensorManager
-        magnetometer = sensorManager.getDefaultSensor(Sensor.TYPE_MAGNETIC_FIELD)
+        magnetometer = sensorManager.getDefaultSensor(Sensor.TYPE_MAGNETIC_FIELD_UNCALIBRATED)
+            ?: sensorManager.getDefaultSensor(Sensor.TYPE_MAGNETIC_FIELD).also {
+                logToUI("⚠️ 当前设备未提供未校准磁力计，已回退到系统校准数据")
+            }
         magnetometer?.let {
             sensorManager.registerListener(this, it, samplingHighDelayUs, samplingHighDelayUs)
             currentDelayUs = samplingHighDelayUs
@@ -217,12 +233,15 @@ class MagnetService : Service(), SensorEventListener {
     }
 
     override fun onSensorChanged(event: SensorEvent?) {
-        if (event?.sensor?.type != Sensor.TYPE_MAGNETIC_FIELD) return
+        if (event?.sensor?.type != Sensor.TYPE_MAGNETIC_FIELD && event?.sensor?.type != Sensor.TYPE_MAGNETIC_FIELD_UNCALIBRATED) return
 
         val now = System.currentTimeMillis()
-        val x = event.values[0]
-        val y = event.values[1]
-        val z = event.values[2]
+        lastRawX = event.values[0]
+        lastRawY = event.values[1]
+        lastRawZ = event.values[2]
+        val x = lastRawX - zeroOffsetX
+        val y = lastRawY - zeroOffsetY
+        val z = lastRawZ - zeroOffsetZ
         val magSq = x * x + y * y + z * z
         val magnitude = sqrt(magSq.toDouble()).toFloat()
 
@@ -250,6 +269,26 @@ class MagnetService : Service(), SensorEventListener {
 
         sendBroadcastToUI(x, y, z, magnitude, poleForUi)
         processLogic(magnitude, z, now, poleForUi)
+    }
+
+    private fun zeroBaseline() {
+        zeroOffsetX = lastRawX
+        zeroOffsetY = lastRawY
+        zeroOffsetZ = lastRawZ
+
+        stablePole = "none"
+        poleCandidate = "none"
+        poleCandidateSince = 0L
+        activePole = "none"
+        lockedPole = "none"
+        triggerStartTime = 0L
+        isLongPressTriggered = false
+        resetBelowSince = 0L
+        belowEnergySince = 0L
+        stopVibration()
+
+        lastUiMag = -1f
+        logToUI("✅ 已手动归零 (X=${zeroOffsetX.roundToInt()}, Y=${zeroOffsetY.roundToInt()}, Z=${zeroOffsetZ.roundToInt()})")
     }
 
     private fun sendBroadcastToUI(x: Float, y: Float, z: Float, mag: Float, pole: String) {
