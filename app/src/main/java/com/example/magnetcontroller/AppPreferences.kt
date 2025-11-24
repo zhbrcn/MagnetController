@@ -74,6 +74,18 @@ class AppPreferences(context: Context) {
         get() = prefs.getLong("auto_zero_stability_duration_ms", 4000L)
         set(value) = prefs.edit().putLong("auto_zero_stability_duration_ms", value).apply()
 
+    var strongSuppressionThreshold: Float
+        get() = prefs.getFloat("strong_suppression_threshold", 1800f)
+        set(value) = prefs.edit().putFloat("strong_suppression_threshold", value).apply()
+
+    var strongSuppressionDurationMs: Long
+        get() = prefs.getLong("strong_suppression_duration_ms", 400L)
+        set(value) = prefs.edit().putLong("strong_suppression_duration_ms", value).apply()
+
+    var strongSuppressionJitter: Float
+        get() = prefs.getFloat("strong_suppression_jitter", 40f)
+        set(value) = prefs.edit().putFloat("strong_suppression_jitter", value).apply()
+
     var allShortAction: String
         get() = getAction("all_short_action", "play_pause")
         set(value) = setAction("all_short_action", value)

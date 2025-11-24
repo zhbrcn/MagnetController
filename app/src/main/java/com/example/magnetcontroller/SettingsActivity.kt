@@ -47,6 +47,9 @@ class SettingsActivity : AppCompatActivity() {
         binding.etAutoZeroSeconds.setText(String.format(Locale.US, "%.1f", prefs.autoZeroDurationMs / 1000f))
         binding.etAutoZeroStableSeconds.setText(String.format(Locale.US, "%.1f", prefs.autoZeroStabilityDurationMs / 1000f))
         binding.etAutoZeroStableBand.setText(prefs.autoZeroStabilityBand.toString())
+        binding.etStrongSuppressionThreshold.setText(prefs.strongSuppressionThreshold.toString())
+        binding.etStrongSuppressionDuration.setText(prefs.strongSuppressionDurationMs.toString())
+        binding.etStrongSuppressionJitter.setText(prefs.strongSuppressionJitter.toString())
 
         when (prefs.poleMode) {
             "different" -> binding.rbDifferent.isChecked = true
@@ -86,6 +89,9 @@ class SettingsActivity : AppCompatActivity() {
         prefs.autoZeroDurationMs = ((binding.etAutoZeroSeconds.text.toString().toFloatOrNull() ?: 4f) * 1000).toLong()
         prefs.autoZeroStabilityDurationMs = ((binding.etAutoZeroStableSeconds.text.toString().toFloatOrNull() ?: 4f) * 1000).toLong()
         prefs.autoZeroStabilityBand = binding.etAutoZeroStableBand.text.toString().toFloatOrNull() ?: 20f
+        prefs.strongSuppressionThreshold = binding.etStrongSuppressionThreshold.text.toString().toFloatOrNull() ?: 1800f
+        prefs.strongSuppressionDurationMs = binding.etStrongSuppressionDuration.text.toString().toLongOrNull() ?: 400L
+        prefs.strongSuppressionJitter = binding.etStrongSuppressionJitter.text.toString().toFloatOrNull() ?: 40f
 
         prefs.poleMode = if (binding.rbDifferent.isChecked) "different" else "both"
 

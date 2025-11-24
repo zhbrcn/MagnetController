@@ -265,6 +265,88 @@
             <TextView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
+                android:text="强磁贴合保护"
+                android:textStyle="bold"
+                android:textSize="16sp" />
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="强磁长时间贴合且波动极低时，忽略当前触发并用 3 声提示失败。单位：μT、ms"
+                android:textColor="#666"
+                android:textSize="13sp"
+                android:paddingBottom="10dp" />
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="判定阈值 (μT)"
+                android:textColor="#374151"
+                android:textSize="14sp" />
+
+            <EditText
+                android:id="@+id/etStrongSuppressionThreshold"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:inputType="numberDecimal"
+                android:hint="例如：1800"
+                android:layout_marginBottom="8dp" />
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="持续时间 (ms)"
+                android:textColor="#374151"
+                android:textSize="14sp" />
+
+            <EditText
+                android:id="@+id/etStrongSuppressionDuration"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:inputType="number"
+                android:hint="例如：400"
+                android:layout_marginBottom="8dp" />
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="最大抖动 (μT)"
+                android:textColor="#374151"
+                android:textSize="14sp" />
+
+            <EditText
+                android:id="@+id/etStrongSuppressionJitter"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:inputType="numberDecimal"
+                android:hint="例如：40"
+                android:layout_marginBottom="4dp" />
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="提示：用于抑制三轴霍尔在强磁贴近时的失灵。阈值参考手套磁铁贴合时的峰值，抖动建议 20-50 μT。"
+                android:textColor="#888"
+                android:textSize="12sp" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:padding="16dp"
+            android:background="#FFFFFF"
+            android:elevation="2dp"
+            android:layout_marginBottom="16dp"
+            android:paddingBottom="20dp"
+            android:clipToPadding="false"
+            android:clipChildren="false"
+            android:stateListAnimator="@null"
+            android:translationZ="1dp">
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
                 android:text="节能与采样"
                 android:textStyle="bold"
                 android:textSize="16sp" />

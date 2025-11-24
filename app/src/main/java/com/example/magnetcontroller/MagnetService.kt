@@ -81,6 +81,13 @@ class MagnetService : Service(), SensorEventListener {
     private var autoZeroStableMin = 0f
     private var autoZeroStableMax = 0f
     private var autoZeroLatched = false
+    private var strongSuppressionThreshold = 1800f
+    private var strongSuppressionDurationMs = 400L
+    private var strongSuppressionJitter = 40f
+    private var strongSuppressionStart = 0L
+    private var strongSuppressionMin = 0f
+    private var strongSuppressionMax = 0f
+    private var strongSuppressionLatched = false
     private var usePolarity = true
     private var soundPool: SoundPool? = null
     private val soundIds = mutableMapOf<String, Int>()
@@ -149,6 +156,9 @@ class MagnetService : Service(), SensorEventListener {
         autoZeroDurationMs = prefs.autoZeroDurationMs
         autoZeroStabilityBand = prefs.autoZeroStabilityBand
         autoZeroStabilityDurationMs = prefs.autoZeroStabilityDurationMs
+        strongSuppressionThreshold = prefs.strongSuppressionThreshold
+        strongSuppressionDurationMs = prefs.strongSuppressionDurationMs
+        strongSuppressionJitter = prefs.strongSuppressionJitter
         usePolarity = prefs.poleMode == "different"
         belowEnergySince = 0L
         resetBelowSince = 0L
@@ -157,6 +167,10 @@ class MagnetService : Service(), SensorEventListener {
         autoZeroStableMin = 0f
         autoZeroStableMax = 0f
         autoZeroLatched = false
+        strongSuppressionStart = 0L
+        strongSuppressionLatched = false
+        strongSuppressionMin = 0f
+        strongSuppressionMax = 0f
         if (!usePolarity) {
             activePole = "none"
             lockedPole = "none"
@@ -311,6 +325,10 @@ class MagnetService : Service(), SensorEventListener {
         autoZeroStableMin = 0f
         autoZeroStableMax = 0f
         autoZeroLatched = false
+        strongSuppressionStart = 0L
+        strongSuppressionLatched = false
+        strongSuppressionMin = 0f
+        strongSuppressionMax = 0f
         stopVibration()
 
         lastUiMag = -1f
@@ -379,6 +397,42 @@ class MagnetService : Service(), SensorEventListener {
             val durationMs = if (zeroReason?.contains("±") == true) autoZeroStabilityDurationMs else autoZeroDurationMs
             logToUI("🧭 ${(zeroReason ?: "磁场稳定")} ${"%.1f".format(durationMs / 1000f)} 秒，已自动归零")
         }
+    }
+
+    private fun handleStrongSuppression(magnitude: Float, now: Long): Boolean {
+        if (strongSuppressionThreshold <= 0f || strongSuppressionDurationMs <= 0L) return false
+
+        if (magnitude > strongSuppressionThreshold) {
+            if (strongSuppressionStart == 0L) {
+                strongSuppressionStart = now
+                strongSuppressionMin = magnitude
+                strongSuppressionMax = magnitude
+            } else {
+                strongSuppressionMin = minOf(strongSuppressionMin, magnitude)
+                strongSuppressionMax = maxOf(strongSuppressionMax, magnitude)
+            }
+
+            val jitter = strongSuppressionMax - strongSuppressionMin
+            if (jitter <= strongSuppressionJitter && now - strongSuppressionStart >= strongSuppressionDurationMs) {
+                if (!strongSuppressionLatched) {
+                    strongSuppressionLatched = true
+                    cancelActiveTrigger()
+                    lastActionTime = now
+                    logToUI("⚠️ 强磁稳定贴合，已忽略本次触发")
+                    playPressFailureChime()
+                }
+                return true
+            }
+        } else {
+            if (magnitude < strongSuppressionThreshold - strongSuppressionJitter) {
+                strongSuppressionLatched = false
+            }
+            strongSuppressionStart = 0L
+            strongSuppressionMin = magnitude
+            strongSuppressionMax = magnitude
+        }
+
+        return false
     }
 
     private fun updatePolarity(x: Float, y: Float, z: Float, magnitude: Float, now: Long): String {
@@ -487,6 +541,8 @@ class MagnetService : Service(), SensorEventListener {
     }
 
     private fun processLogic(x: Float, zValue: Float, magnitude: Float, now: Long, poleForUi: String) {
+        if (handleStrongSuppression(magnitude, now)) return
+
         val inCooldown = now - lastActionTime < actionCooldownMs
         if (triggerStartTime == 0L && inCooldown) return
 
@@ -615,6 +671,17 @@ class MagnetService : Service(), SensorEventListener {
         }
     }
 
+    private fun cancelActiveTrigger() {
+        triggerStartTime = 0L
+        isLongPressTriggered = false
+        stopVibration()
+        isContinuousVibrating = false
+        activePole = "none"
+        lockedPole = "none"
+        sampleWindowStart = 0L
+        sampleWindow.clear()
+    }
+
     private fun performAction(action: String) {
         playActionSound(action)
         when (action) {
@@ -671,6 +738,13 @@ class MagnetService : Service(), SensorEventListener {
 
     private fun playPressSound() {
         playSound("press")
+    }
+
+    private fun playPressFailureChime() {
+        val intervals = listOf(0L, 150L, 300L)
+        intervals.forEach { delay ->
+            soundReleaseHandler.postDelayed({ playPressSound() }, delay)
+        }
     }
 
     private fun playSound(key: String?) {
