@@ -62,6 +62,14 @@ class AppPreferences(context: Context) {
         get() = prefs.getLong("threshold_reset_debounce_ms", 80L)
         set(value) = prefs.edit().putLong("threshold_reset_debounce_ms", value).apply()
 
+    var autoZeroThreshold: Float
+        get() = prefs.getFloat("auto_zero_threshold", 80f)
+        set(value) = prefs.edit().putFloat("auto_zero_threshold", value).apply()
+
+    var autoZeroDurationMs: Long
+        get() = prefs.getLong("auto_zero_duration_ms", 4000L)
+        set(value) = prefs.edit().putLong("auto_zero_duration_ms", value).apply()
+
     var nShortAction: String
         get() = getAction("n_short_action", "play_pause")
         set(value) = setAction("n_short_action", value)
