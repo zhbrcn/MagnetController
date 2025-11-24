@@ -46,6 +46,10 @@ class MainActivity : AppCompatActivity() {
         binding.btnSettings.setOnClickListener {
             startActivity(Intent(this, SettingsActivity::class.java))
         }
+
+        binding.btnZero.setOnClickListener {
+            requestManualZero()
+        }
     }
 
     private fun startMagnetService() {
@@ -104,6 +108,14 @@ class MainActivity : AppCompatActivity() {
             }
             lastUiUpdateTime = now
         }
+    }
+
+    private fun requestManualZero() {
+        val intent = Intent(this, MagnetService::class.java).apply {
+            action = MagnetService.ACTION_ZERO_SENSOR
+        }
+        ContextCompat.startForegroundService(this, intent)
+        addLog("已请求手动归零")
     }
 
     private fun addLog(message: String) {
