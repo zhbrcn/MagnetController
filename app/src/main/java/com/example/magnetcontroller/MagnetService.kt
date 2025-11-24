@@ -14,6 +14,7 @@ import android.hardware.SensorEvent
 import android.hardware.SensorEventListener
 import android.hardware.SensorManager
 import android.media.AudioManager
+import android.media.SoundPool
 import android.os.Build
 import android.os.IBinder
 import android.os.PowerManager
@@ -74,6 +75,8 @@ class MagnetService : Service(), SensorEventListener {
     private var autoZeroSince = 0L
     private var autoZeroLatched = false
     private var usePolarity = true
+    private var soundPool: SoundPool? = null
+    private val soundIds = mutableMapOf<String, Int>()
     private val longPressPattern = longArrayOf(0, 200, 100, 200)
     private val CHANNEL_ID = "MagnetServiceChannel"
     private val TAG = "MagnetService"
@@ -100,6 +103,7 @@ class MagnetService : Service(), SensorEventListener {
         super.onCreate()
         prefs = AppPreferences(this)
         loadSettings()
+        initSoundEffects()
         createNotificationChannel()
         initSensor()
 
@@ -245,6 +249,7 @@ class MagnetService : Service(), SensorEventListener {
         unregisterReceiver(settingsReceiver)
         unregisterReceiver(screenReceiver)
         stopVibration()
+        releaseSoundEffects()
     }
 
     override fun onSensorChanged(event: SensorEvent?) {
@@ -543,6 +548,7 @@ class MagnetService : Service(), SensorEventListener {
     }
 
     private fun performAction(action: String) {
+        playActionSound(action)
         when (action) {
             "voice" -> triggerVoiceAssistant()
             "next" -> triggerMediaKey(KeyEvent.KEYCODE_MEDIA_NEXT, "下一曲")
@@ -552,6 +558,50 @@ class MagnetService : Service(), SensorEventListener {
             "play_pause", "media" -> triggerMediaKey(KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE, "播放/暂停")
             else -> triggerMediaKey(KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE, "播放/暂停")
         }
+    }
+
+    private fun initSoundEffects() {
+        soundPool = SoundPool.Builder().setMaxStreams(1).build().also { pool ->
+            loadSound(pool, "toggle")
+            loadSound(pool, "prev")
+            loadSound(pool, "next")
+            loadSound(pool, "volup")
+            loadSound(pool, "voldown")
+            loadSound(pool, "assistant")
+        }
+    }
+
+    private fun loadSound(pool: SoundPool, name: String) {
+        try {
+            assets.openFd("sound/$name.wav").use { afd ->
+                val id = pool.load(afd, 1)
+                soundIds[name] = id
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, "加载音效失败 $name: ${e.message}")
+        }
+    }
+
+    private fun playActionSound(action: String) {
+        val key = when (action) {
+            "play_pause", "media" -> "toggle"
+            "previous" -> "prev"
+            "next" -> "next"
+            "volume_up" -> "volup"
+            "volume_down" -> "voldown"
+            "voice" -> "assistant"
+            else -> null
+        }
+
+        val pool = soundPool ?: return
+        val soundId = key?.let { soundIds[it] } ?: return
+        pool.play(soundId, 1f, 1f, 1, 0, 1f)
+    }
+
+    private fun releaseSoundEffects() {
+        soundPool?.release()
+        soundPool = null
+        soundIds.clear()
     }
 
     private fun triggerVoiceAssistant() {
