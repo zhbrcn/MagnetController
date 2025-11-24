@@ -566,6 +566,53 @@ class MagnetService : Service(), SensorEventListener {
             Log.w(TAG, "无法解析蓝牙广播设备: ${e.message}")
             null
         }
+
+        lastBluetoothGateState = isConnected
+    }
+
+    private fun isDeviceCurrentlyConnected(address: String): Boolean {
+        if (!hasBluetoothConnectPermission()) return false
+        val manager = getSystemService(Context.BLUETOOTH_SERVICE) as BluetoothManager? ?: return false
+
+        val profiles = listOf(
+            BluetoothProfile.HEADSET,
+            BluetoothProfile.A2DP,
+            BluetoothProfile.GATT
+        )
+
+        profiles.forEach { profile ->
+            try {
+                if (manager.getConnectedDevices(profile).any { it.address.equals(address, ignoreCase = true) }) {
+                    return true
+                }
+            } catch (se: SecurityException) {
+                Log.w(TAG, "蓝牙连接状态检查失败: ${se.message}")
+                return false
+            }
+        }
+
+        return false
+    }
+
+    private fun hasBluetoothConnectPermission(): Boolean {
+        return Build.VERSION.SDK_INT < Build.VERSION_CODES.S ||
+            checkSelfPermission(Manifest.permission.BLUETOOTH_CONNECT) == PackageManager.PERMISSION_GRANTED
+    }
+
+    private fun getBluetoothDeviceFromIntent(intent: Intent?): BluetoothDevice? {
+        intent ?: return null
+        return try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                intent.getParcelableExtra(BluetoothDevice.EXTRA_DEVICE, BluetoothDevice::class.java)
+            } else {
+                @Suppress("DEPRECATION")
+                intent.getParcelableExtra(BluetoothDevice.EXTRA_DEVICE)
+            }
+        } catch (_: Exception) {
+            null
+        }
+
+        return false
     }
 
     private fun updatePolarity(x: Float, y: Float, z: Float, magnitude: Float, now: Long): String {
