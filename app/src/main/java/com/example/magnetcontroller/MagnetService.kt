@@ -437,6 +437,7 @@ class MagnetService : Service(), SensorEventListener {
             if (triggerStartTime == 0L) {
                 triggerStartTime = now
                 isLongPressTriggered = false
+                playPressSound()
                 startContinuousVibration()
                 activePole = if (usePolarity) resolvePoleForAction(poleForUi, poleInstant) else "all"
             } else {
@@ -550,7 +551,7 @@ class MagnetService : Service(), SensorEventListener {
     private fun performAction(action: String) {
         playActionSound(action)
         when (action) {
-            "voice" -> triggerVoiceAssistant()
+            "voice" -> triggerVoiceAssistant(alreadyPlayedSound = true)
             "next" -> triggerMediaKey(KeyEvent.KEYCODE_MEDIA_NEXT, "下一曲")
             "previous" -> triggerMediaKey(KeyEvent.KEYCODE_MEDIA_PREVIOUS, "上一曲")
             "volume_up" -> adjustVolume(AudioManager.ADJUST_RAISE, "音量 +")
@@ -568,6 +569,7 @@ class MagnetService : Service(), SensorEventListener {
             loadSound(pool, "volup")
             loadSound(pool, "voldown")
             loadSound(pool, "assistant")
+            loadSound(pool, "press")
         }
     }
 
@@ -593,6 +595,14 @@ class MagnetService : Service(), SensorEventListener {
             else -> null
         }
 
+        playSound(key)
+    }
+
+    private fun playPressSound() {
+        playSound("press")
+    }
+
+    private fun playSound(key: String?) {
         val pool = soundPool ?: return
         val soundId = key?.let { soundIds[it] } ?: return
         pool.play(soundId, 1f, 1f, 1, 0, 1f)
@@ -604,7 +614,11 @@ class MagnetService : Service(), SensorEventListener {
         soundIds.clear()
     }
 
-    private fun triggerVoiceAssistant() {
+    private fun triggerVoiceAssistant(alreadyPlayedSound: Boolean = false) {
+        if (!alreadyPlayedSound) {
+            playSound("assistant")
+        }
+
         if (AccessibilityVoiceService.requestVoice(this)) {
             logToUI("▶️ 正在通过无障碍服务唤醒助手...")
             return
