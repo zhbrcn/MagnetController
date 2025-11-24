@@ -509,7 +509,7 @@ class MagnetService : Service(), SensorEventListener {
         if (forceLog || stateChanged) {
             if (requiredBluetoothAddress.isBlank()) {
                 logToUI("⏸ 未选择蓝牙设备，所有磁力触发已暂停")
-            } else if (!hasBluetoothConnectPermission()) {
+            } else if (!isBluetoothConnectPermissionGranted()) {
                 logToUI("⏸ 缺少蓝牙连接权限，无法检查设备连接，已暂停触发")
             } else if (isConnected) {
                 val name = requiredBluetoothName.ifBlank { requiredBluetoothAddress }
@@ -524,7 +524,7 @@ class MagnetService : Service(), SensorEventListener {
     }
 
     private fun isRequiredDeviceConnectedNow(address: String): Boolean {
-        if (!hasBluetoothConnectPermission()) return false
+        if (!isBluetoothConnectPermissionGranted()) return false
         val manager = getSystemService(Context.BLUETOOTH_SERVICE) as BluetoothManager? ?: return false
 
         val profiles = listOf(
@@ -547,7 +547,7 @@ class MagnetService : Service(), SensorEventListener {
         return false
     }
 
-    private fun hasBluetoothConnectPermission(): Boolean {
+    private fun isBluetoothConnectPermissionGranted(): Boolean {
         return Build.VERSION.SDK_INT < Build.VERSION_CODES.S ||
             checkSelfPermission(Manifest.permission.BLUETOOTH_CONNECT) == PackageManager.PERMISSION_GRANTED
     }
