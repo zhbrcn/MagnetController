@@ -46,6 +46,10 @@ class MainActivity : AppCompatActivity() {
         binding.btnSettings.setOnClickListener {
             startActivity(Intent(this, SettingsActivity::class.java))
         }
+
+        binding.btnManualZero.setOnClickListener {
+            requestManualZero()
+        }
     }
 
     private fun startMagnetService() {
@@ -87,23 +91,30 @@ class MainActivity : AppCompatActivity() {
             binding.tvPoleType.text = poleText
             binding.tvPoleType.setTextColor(
                 when (pole) {
-                    "N" -> android.graphics.Color.BLUE
-                    "S" -> android.graphics.Color.RED
-                    else -> android.graphics.Color.GRAY
+                    "N" -> android.graphics.Color.parseColor("#60A5FA")
+                    "S" -> android.graphics.Color.parseColor("#FCA5A5")
+                    else -> android.graphics.Color.parseColor("#9FB0D3")
                 }
             )
 
             binding.tvStatus.text = "状态: $status"
 
-            if (status.contains("触发")) {
-                binding.tvStatus.setTextColor(android.graphics.Color.BLUE)
-            } else if (status.contains("检测到")) {
-                binding.tvStatus.setTextColor(android.graphics.Color.MAGENTA)
-            } else {
-                binding.tvStatus.setTextColor(android.graphics.Color.BLACK)
+            val statusColor = when {
+                status.contains("触发") -> android.graphics.Color.parseColor("#34D399")
+                status.contains("检测到") -> android.graphics.Color.parseColor("#FBBF24")
+                else -> android.graphics.Color.parseColor("#E5E7EB")
             }
+            binding.tvStatus.setTextColor(statusColor)
             lastUiUpdateTime = now
         }
+    }
+
+    private fun requestManualZero() {
+        val intent = Intent(this, MagnetService::class.java).apply {
+            action = MagnetService.ACTION_ZERO_SENSOR
+        }
+        ContextCompat.startForegroundService(this, intent)
+        addLog("已请求手动归零")
     }
 
     private fun addLog(message: String) {
