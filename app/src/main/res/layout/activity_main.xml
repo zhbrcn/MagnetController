@@ -1,0 +1,123 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:padding="24dp"
+    tools:context=".MainActivity">
+
+    <TextView
+        android:id="@+id/tvTitle"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="磁力服务 Pro"
+        android:textSize="28sp"
+        android:textStyle="bold"
+        app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        android:layout_marginTop="40dp"/>
+    
+    <Button
+        android:id="@+id/btnSettings"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="⚙️ 设置"
+        app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        android:layout_marginTop="20dp" />
+
+    <TextView
+        android:id="@+id/tvMagnitude"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="0.0 μT"
+        android:textSize="48sp"
+        android:textStyle="bold"
+        android:textColor="#FF0000"
+        app:layout_constraintTop_toBottomOf="@id/tvTitle"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        android:layout_marginTop="40dp"/>
+
+    <TextView
+        android:id="@+id/tvPoleType"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="极性: 未检测"
+        android:textSize="20sp"
+        android:textColor="#0000FF"
+        app:layout_constraintTop_toBottomOf="@id/tvMagnitude"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        android:layout_marginTop="8dp"/>
+
+    <TextView
+        android:id="@+id/tvStatus"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="服务正在后台运行..."
+        android:textSize="18sp"
+        app:layout_constraintTop_toBottomOf="@id/tvPoleType"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        android:layout_marginTop="16dp"/>
+
+    <LinearLayout
+        android:id="@+id/layoutXYZ"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:background="#EEE"
+        android:padding="16dp"
+        android:layout_marginTop="40dp"
+        app:layout_constraintTop_toBottomOf="@id/tvStatus"
+        app:layout_constraintStart_toStartOf="parent">
+
+        <TextView 
+            android:id="@+id/tvX" 
+            android:layout_width="match_parent" 
+            android:layout_height="wrap_content" 
+            android:text="X: 0" 
+            android:textSize="16sp"/>
+            
+        <TextView 
+            android:id="@+id/tvY" 
+            android:layout_width="match_parent" 
+            android:layout_height="wrap_content" 
+            android:text="Y: 0" 
+            android:textSize="16sp"/>
+            
+        <TextView 
+            android:id="@+id/tvZ" 
+            android:layout_width="match_parent" 
+            android:layout_height="wrap_content" 
+            android:text="Z: 0" 
+            android:textSize="16sp"/>
+    </LinearLayout>
+    
+    <TextView
+        android:id="@+id/tvLog"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="日志..."
+        android:textColor="#888"
+        android:textSize="12sp"
+        android:maxLines="5"
+        android:scrollbars="vertical"
+        android:layout_marginTop="20dp"
+        app:layout_constraintTop_toBottomOf="@id/layoutXYZ"
+        app:layout_constraintStart_toStartOf="parent" />
+
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="后台说明：应用已升级为后台服务模式。\n点击右上角设置按钮可自定义功能。"
+        android:textColor="#666"
+        android:layout_marginBottom="40dp"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"/>
+
+</androidx.constraintlayout.widget.ConstraintLayout>

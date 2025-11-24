@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">MagnetController</string>
+    <string name="accessibility_description">用于模拟长按 Home 键唤醒语音助手</string>
+</resources>
