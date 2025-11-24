@@ -372,6 +372,46 @@ class MagnetService : Service(), SensorEventListener {
         return if (avgX >= avgZ) "N" else "S"
     }
 
+    private fun zeroBaseline() {
+        zeroOffsetX = lastRawX
+        zeroOffsetY = lastRawY
+        zeroOffsetZ = lastRawZ
+
+        stablePole = "none"
+        poleCandidate = "none"
+        poleCandidateSince = 0L
+        activePole = "none"
+        lockedPole = "none"
+        triggerStartTime = 0L
+        isLongPressTriggered = false
+        resetBelowSince = 0L
+        belowEnergySince = 0L
+        autoZeroSince = 0L
+        autoZeroLatched = false
+        stopVibration()
+
+        lastUiMag = -1f
+        logToUI("✅ 已手动归零 (X=${zeroOffsetX.roundToInt()}, Y=${zeroOffsetY.roundToInt()}, Z=${zeroOffsetZ.roundToInt()})")
+    }
+
+    private fun handleAutoZero(magnitude: Float, now: Long) {
+        if (autoZeroDurationMs <= 0L) return
+
+        if (magnitude < autoZeroThreshold) {
+            if (autoZeroSince == 0L) autoZeroSince = now
+            if (!autoZeroLatched && now - autoZeroSince >= autoZeroDurationMs) {
+                zeroBaseline()
+                autoZeroLatched = true
+                logToUI(
+                    "🧭 磁场 ${"%.1f".format(autoZeroDurationMs / 1000f)} 秒低于 ${autoZeroThreshold.roundToInt()} μT，已自动归零"
+                )
+            }
+        } else {
+            autoZeroSince = 0L
+            autoZeroLatched = false
+        }
+    }
+
     private fun sendBroadcastToUI(x: Float, y: Float, z: Float, mag: Float, pole: String) {
         val status = getStatusText()
         val poleChanged = pole != lastUiPole
