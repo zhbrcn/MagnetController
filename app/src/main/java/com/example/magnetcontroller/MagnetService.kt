@@ -564,6 +564,8 @@ class MagnetService : Service(), SensorEventListener {
         } catch (_: Exception) {
             null
         }
+
+        return false
     }
 
     private fun updatePolarity(x: Float, y: Float, z: Float, magnitude: Float, now: Long): String {
