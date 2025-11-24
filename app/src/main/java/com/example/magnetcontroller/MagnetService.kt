@@ -16,7 +16,9 @@ import android.hardware.SensorManager
 import android.media.AudioManager
 import android.media.SoundPool
 import android.os.Build
+import android.os.Handler
 import android.os.IBinder
+import android.os.Looper
 import android.os.PowerManager
 import android.os.VibrationEffect
 import android.os.Vibrator
@@ -82,6 +84,9 @@ class MagnetService : Service(), SensorEventListener {
     private var usePolarity = true
     private var soundPool: SoundPool? = null
     private val soundIds = mutableMapOf<String, Int>()
+    private val soundReleaseHandler = Handler(Looper.getMainLooper())
+    private val soundReleaseDelayMs = 60_000L
+    private val soundReleaseRunnable = Runnable { releaseSoundEffects() }
     private val longPressPattern = longArrayOf(0, 200, 100, 200)
     private val CHANNEL_ID = "MagnetServiceChannel"
     private val TAG = "MagnetService"
@@ -108,7 +113,6 @@ class MagnetService : Service(), SensorEventListener {
         super.onCreate()
         prefs = AppPreferences(this)
         loadSettings()
-        initSoundEffects()
         createNotificationChannel()
         initSensor()
 
@@ -218,6 +222,9 @@ class MagnetService : Service(), SensorEventListener {
         magnetometer?.let {
             sensorManager.registerListener(this, it, samplingHighDelayUs, samplingHighDelayUs)
             currentDelayUs = samplingHighDelayUs
+        } ?: run {
+            logToUI("❌ 无法获取磁力计传感器，已停止监听")
+            stopSelf()
         }
     }
 
@@ -227,6 +234,7 @@ class MagnetService : Service(), SensorEventListener {
         sensorManager.unregisterListener(this, magnetometer)
         sensorManager.registerListener(this, magnetometer, delayUs, delayUs)
         currentDelayUs = delayUs
+        logToUI("⚙️ 采样频率已切换为 ${"%.1f".format(1_000_000f / delayUs)} Hz")
     }
 
     private fun hzToDelayUs(hz: Float, defaultDelayUs: Int): Int {
@@ -620,16 +628,20 @@ class MagnetService : Service(), SensorEventListener {
         }
     }
 
-    private fun initSoundEffects() {
-        soundPool = SoundPool.Builder().setMaxStreams(1).build().also { pool ->
-            loadSound(pool, "toggle")
-            loadSound(pool, "prev")
-            loadSound(pool, "next")
-            loadSound(pool, "volup")
-            loadSound(pool, "voldown")
-            loadSound(pool, "assistant")
-            loadSound(pool, "press")
-        }
+    private fun ensureSoundEffects(): SoundPool? {
+        soundPool?.let { return it }
+
+        val pool = SoundPool.Builder().setMaxStreams(1).build()
+        soundPool = pool
+        soundIds.clear()
+        loadSound(pool, "toggle")
+        loadSound(pool, "prev")
+        loadSound(pool, "next")
+        loadSound(pool, "volup")
+        loadSound(pool, "voldown")
+        loadSound(pool, "assistant")
+        loadSound(pool, "press")
+        return pool
     }
 
     private fun loadSound(pool: SoundPool, name: String) {
@@ -662,15 +674,22 @@ class MagnetService : Service(), SensorEventListener {
     }
 
     private fun playSound(key: String?) {
-        val pool = soundPool ?: return
+        val pool = ensureSoundEffects() ?: return
         val soundId = key?.let { soundIds[it] } ?: return
         pool.play(soundId, 1f, 1f, 1, 0, 1f)
+        scheduleSoundRelease()
     }
 
     private fun releaseSoundEffects() {
+        soundReleaseHandler.removeCallbacks(soundReleaseRunnable)
         soundPool?.release()
         soundPool = null
         soundIds.clear()
+    }
+
+    private fun scheduleSoundRelease() {
+        soundReleaseHandler.removeCallbacks(soundReleaseRunnable)
+        soundReleaseHandler.postDelayed(soundReleaseRunnable, soundReleaseDelayMs)
     }
 
     private fun triggerVoiceAssistant(alreadyPlayedSound: Boolean = false) {
@@ -684,14 +703,12 @@ class MagnetService : Service(), SensorEventListener {
         }
 
         acquireWakeLock(4000)
-
-        logToUI("▶️ 尝试方案：VOICE_COMMAND")
-        if (tryVoiceCommandGeneric()) {
-            logToUI("✅ 成功：VOICE_COMMAND")
-        } else {
-            logToUI("⚠️ VOICE_COMMAND 失败，请检查后台弹窗/默认助手权限")
+        try {
+            logToUI("⚠️ 无障碍服务未启用，无法通过系统助手唤醒；已为你打开辅助功能设置")
+            AccessibilityVoiceService.requestVoice(this)
+        } finally {
+            releaseWakeLock()
         }
-        releaseWakeLock()
     }
 
     private fun tryPlayPauseLongPress(): Boolean {
