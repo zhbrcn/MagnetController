@@ -32,6 +32,7 @@ import android.bluetooth.BluetoothAdapter
 import android.bluetooth.BluetoothDevice
 import android.bluetooth.BluetoothManager
 import android.bluetooth.BluetoothProfile
+import android.content.pm.PackageManager
 import android.media.AudioDeviceInfo
 import android.media.AudioManager
 import android.media.SoundPool
@@ -210,6 +211,9 @@ class MagnetService : Service(), SensorEventListener {
 
     private val TAG = "MagnetService"
 
+    private val recentLogs = ArrayDeque<String>()
+    private val maxRecentLogs = 20
+
 
 
     private val settingsReceiver = object : BroadcastReceiver() {
@@ -258,6 +262,7 @@ class MagnetService : Service(), SensorEventListener {
         createNotificationChannel()
 
         initSensor()
+        syncRecentLogsToUi()
 
 
 
@@ -417,22 +422,6 @@ class MagnetService : Service(), SensorEventListener {
 
 
 
-        val triggerActivityIntent = Intent(this, VoiceTriggerActivity::class.java)
-
-        val triggerPending = PendingIntent.getActivity(
-
-            this,
-
-            1,
-
-            triggerActivityIntent,
-
-            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
-
-        )
-
-
-
         val notification: Notification = NotificationCompat.Builder(this, CHANNEL_ID)
 
             .setContentTitle(getString(R.string.notification_running))
@@ -441,7 +430,6 @@ class MagnetService : Service(), SensorEventListener {
 
             .setContentIntent(pendingIntent)
 
-            .addAction(android.R.drawable.ic_btn_speak_now, getString(R.string.notification_voice), triggerPending)
             .build()
 
 
@@ -459,13 +447,9 @@ class MagnetService : Service(), SensorEventListener {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
 
             val serviceChannel = NotificationChannel(
-
                 CHANNEL_ID,
-
                 "Magnet Service Channel",
-
-                NotificationManager.IMPORTANCE_LOW
-
+                NotificationManager.IMPORTANCE_MIN
             )
 
             val manager = getSystemService(NotificationManager::class.java)
@@ -584,6 +568,8 @@ class MagnetService : Service(), SensorEventListener {
         stopVibration()
 
         releaseSoundEffects()
+
+        syncRecentLogsToUi()
 
     }
 
@@ -1187,6 +1173,24 @@ class MagnetService : Service(), SensorEventListener {
 
         Log.d(TAG, message)
 
+        addRecentLog(message)
+
+    }
+
+    private fun addRecentLog(message: String) {
+        if (message.isBlank()) return
+        if (recentLogs.size >= maxRecentLogs) {
+            recentLogs.removeFirst()
+        }
+        recentLogs.addLast(message)
+        syncRecentLogsToUi()
+    }
+
+    private fun syncRecentLogsToUi() {
+        val intent = Intent("com.example.magnetcontroller.UPDATE_RECENT_LOGS")
+        intent.putStringArrayListExtra("logs", ArrayList(recentLogs))
+        intent.setPackage(packageName)
+        sendBroadcast(intent)
     }
 
 

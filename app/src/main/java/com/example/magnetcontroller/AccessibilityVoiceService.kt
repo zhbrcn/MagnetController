@@ -31,10 +31,12 @@ class AccessibilityVoiceService : AccessibilityService() {
     override fun onServiceConnected() {
         super.onServiceConnected()
         instance = this
+        broadcastState(true)
     }
 
     override fun onUnbind(intent: Intent?): Boolean {
         instance = null
+        broadcastState(false)
         return super.onUnbind(intent)
     }
 
@@ -70,6 +72,16 @@ class AccessibilityVoiceService : AccessibilityService() {
                 startActivity(intent)
             } catch (_: Exception) {
             }
+        }
+    }
+
+    private fun broadcastState(enabled: Boolean) {
+        try {
+            val intent = Intent("com.example.magnetcontroller.UPDATE_ACCESSIBILITY")
+            intent.putExtra("enabled", enabled)
+            intent.setPackage(packageName)
+            sendBroadcast(intent)
+        } catch (_: Exception) {
         }
     }
 }

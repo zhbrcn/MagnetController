@@ -114,6 +114,10 @@ class AppPreferences(context: Context) {
         get() = prefs.getStringSet("allowed_bt_devices", emptySet())?.toSet() ?: emptySet()
         set(value) = prefs.edit().putStringSet("allowed_bt_devices", value.toSet()).apply()
 
+    var recentLogs: List<String>
+        get() = prefs.getStringSet("recent_logs", emptySet())?.sortedBy { it.take(14) } ?: emptyList()
+        set(value) = prefs.edit().putStringSet("recent_logs", value.toSet()).apply()
+
     private fun getAction(key: String, default: String): String {
         val raw = prefs.getString(key, default) ?: default
         val normalized = when (raw) {

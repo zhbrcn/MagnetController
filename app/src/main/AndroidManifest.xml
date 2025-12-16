@@ -47,11 +47,6 @@
             android:label="设置"
             android:parentActivityName="com.example.magnetcontroller.MainActivity" />
 
-        <activity
-            android:name="com.example.magnetcontroller.VoiceTriggerActivity"
-            android:exported="false"
-            android:theme="@android:style/Theme.Translucent.NoTitleBar" />
-        
         <service 
             android:name="com.example.magnetcontroller.MagnetService"
             android:enabled="true"

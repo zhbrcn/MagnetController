@@ -24,7 +24,6 @@
     <!-- Notifications -->
     <string name="notification_running">磁力服务运行中</string>
     <string name="notification_listening">正在后台监听磁场变化...</string>
-    <string name="notification_voice">唤醒助手</string>
 
     <!-- Bluetooth gating -->
     <string name="bt_title">蓝牙设备白名单</string>

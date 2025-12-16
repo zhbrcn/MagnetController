@@ -35,6 +35,14 @@ class MainActivity : AppCompatActivity() {
                     val log = intent.getStringExtra("log") ?: ""
                     addLog(log)
                 }
+                "com.example.magnetcontroller.UPDATE_ACCESSIBILITY" -> {
+                    val enabled = intent.getBooleanExtra("enabled", false)
+                    binding.tvStatus.contentDescription = if (enabled) "无障碍已开启" else "无障碍未开启"
+                }
+                "com.example.magnetcontroller.UPDATE_RECENT_LOGS" -> {
+                    val logs = intent.getStringArrayListExtra("logs") ?: arrayListOf()
+                    applyRecentLogs(logs)
+                }
             }
         }
     }
@@ -68,6 +76,7 @@ class MainActivity : AppCompatActivity() {
         val filter = IntentFilter().apply {
             addAction("com.example.magnetcontroller.UPDATE_UI")
             addAction("com.example.magnetcontroller.UPDATE_LOG")
+            addAction("com.example.magnetcontroller.UPDATE_ACCESSIBILITY")
         }
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             registerReceiver(updateReceiver, filter, Context.RECEIVER_NOT_EXPORTED)
@@ -139,16 +148,13 @@ class MainActivity : AppCompatActivity() {
         binding.tvLog.text = logBuffer.joinToString("\n")
     }
 
+    private fun applyRecentLogs(logs: List<String>) {
+        logBuffer.clear()
+        logBuffer.addAll(logs.takeLast(10).reversed())
+        binding.tvLog.text = logBuffer.joinToString("\n")
+    }
+
     private fun requestNotificationPermissionIfNeeded() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            val granted = ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED
-            if (!granted) {
-                ActivityCompat.requestPermissions(
-                    this,
-                    arrayOf(Manifest.permission.POST_NOTIFICATIONS),
-                    100
-                )
-            }
-        }
+        // 保留前台通知但不强制弹出权限请求，按需在系统设置中手动开启
     }
 }
