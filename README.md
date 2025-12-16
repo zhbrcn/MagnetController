@@ -43,3 +43,4 @@
 - `app/src/main/res`：界面布局、字符串、多尺寸图标及服务配置。
 - `app/src/main/AndroidManifest.xml`：应用入口、服务与权限声明。
 
+...
