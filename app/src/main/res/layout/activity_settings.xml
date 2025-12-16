@@ -528,6 +528,14 @@
                     android:text="区分极性（单独配置 N / S）" />
             </RadioGroup>
 
+            <CheckBox
+                android:id="@+id/cbUsePolarity"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="启用极性判定（无法稳定判定时自动降级为无极性）"
+                android:paddingTop="6dp"
+                android:paddingBottom="6dp" />
+
             <LinearLayout
                 android:id="@+id/groupAllPoleActions"
                 android:layout_width="match_parent"

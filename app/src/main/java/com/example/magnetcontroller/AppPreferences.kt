@@ -5,14 +5,7 @@ import android.content.SharedPreferences
 
 class AppPreferences(context: Context) {
     private val prefs: SharedPreferences = context.getSharedPreferences("MagnetSettings", Context.MODE_PRIVATE)
-    private val allowedActions = setOf(
-        "play_pause",
-        "voice",
-        "previous",
-        "next",
-        "volume_down",
-        "volume_up"
-    )
+    private val allowedActions = setOf("play_pause", "voice", "previous", "next", "volume_down", "volume_up")
 
     var thresholdTrigger: Float
         get() = prefs.getFloat("threshold_trigger", 500f)
@@ -117,6 +110,10 @@ class AppPreferences(context: Context) {
     var recentLogs: List<String>
         get() = prefs.getStringSet("recent_logs", emptySet())?.sortedBy { it.take(14) } ?: emptyList()
         set(value) = prefs.edit().putStringSet("recent_logs", value.toSet()).apply()
+
+    var usePolarity: Boolean
+        get() = prefs.getBoolean("use_polarity", false)
+        set(value) = prefs.edit().putBoolean("use_polarity", value).apply()
 
     private fun getAction(key: String, default: String): String {
         val raw = prefs.getString(key, default) ?: default

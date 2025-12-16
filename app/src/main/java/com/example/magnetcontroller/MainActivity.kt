@@ -6,6 +6,7 @@ import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import android.content.pm.PackageManager
+import android.graphics.Color
 import android.os.Build
 import android.os.Bundle
 import androidx.appcompat.app.AppCompatActivity
@@ -18,6 +19,7 @@ class MainActivity : AppCompatActivity() {
 
     private lateinit var binding: ActivityMainBinding
     private val logBuffer = mutableListOf<String>()
+    private var lastUiUpdateTime = 0L
 
     private val updateReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
@@ -47,8 +49,6 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    private var lastUiUpdateTime = 0L
-
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         binding = ActivityMainBinding.inflate(layoutInflater)
@@ -77,6 +77,7 @@ class MainActivity : AppCompatActivity() {
             addAction("com.example.magnetcontroller.UPDATE_UI")
             addAction("com.example.magnetcontroller.UPDATE_LOG")
             addAction("com.example.magnetcontroller.UPDATE_ACCESSIBILITY")
+            addAction("com.example.magnetcontroller.UPDATE_RECENT_LOGS")
         }
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             registerReceiver(updateReceiver, filter, Context.RECEIVER_NOT_EXPORTED)
@@ -107,10 +108,10 @@ class MainActivity : AppCompatActivity() {
             binding.tvPoleType.text = poleText
             binding.tvPoleType.setTextColor(
                 when (pole) {
-                    "N" -> android.graphics.Color.parseColor("#60A5FA")
-                    "S" -> android.graphics.Color.parseColor("#FCA5A5")
-                    "all" -> android.graphics.Color.parseColor("#6B7280")
-                    else -> android.graphics.Color.parseColor("#9FB0D3")
+                    "N" -> Color.parseColor("#60A5FA")
+                    "S" -> Color.parseColor("#FCA5A5")
+                    "all" -> Color.parseColor("#6B7280")
+                    else -> Color.parseColor("#9FB0D3")
                 }
             )
 
@@ -118,9 +119,10 @@ class MainActivity : AppCompatActivity() {
             binding.tvStatus.text = getString(R.string.status_prefix, statusText)
 
             val statusColor = when {
-                status.contains("触发") -> android.graphics.Color.parseColor("#34D399")
-                status.contains("检测到") -> android.graphics.Color.parseColor("#FBBF24")
-                else -> android.graphics.Color.parseColor("#E5E7EB")
+                statusText.contains("触发") -> Color.parseColor("#34D399")
+                statusText.contains("计时") -> Color.parseColor("#FBBF24")
+                statusText.contains("冷却") -> Color.parseColor("#A78BFA")
+                else -> Color.parseColor("#E5E7EB")
             }
             binding.tvStatus.setTextColor(statusColor)
             lastUiUpdateTime = now
@@ -137,7 +139,7 @@ class MainActivity : AppCompatActivity() {
 
     private fun addLog(message: String) {
         if (message.isBlank()) return
-        if (message.startsWith("⚠️") || message.startsWith("✅")) {
+        if (message.startsWith("⚠️") || message.startsWith("✅") || message.startsWith("ℹ️")) {
             binding.tvRouteHint.text = message
             return
         }
@@ -155,6 +157,11 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun requestNotificationPermissionIfNeeded() {
-        // 保留前台通知但不强制弹出权限请求，按需在系统设置中手动开启
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            val granted = ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED
+            if (!granted) {
+                ActivityCompat.requestPermissions(this, arrayOf(Manifest.permission.POST_NOTIFICATIONS), 1001)
+            }
+        }
     }
 }
