@@ -25,4 +25,15 @@
     <string name="notification_running">磁力服务运行中</string>
     <string name="notification_listening">正在后台监听磁场变化...</string>
     <string name="notification_voice">唤醒助手</string>
+
+    <!-- Bluetooth gating -->
+    <string name="bt_title">蓝牙设备白名单</string>
+    <string name="bt_desc">仅在连接选定的蓝牙耳机/音箱时才响应磁控，避免外放时误触发。</string>
+    <string name="bt_selected_prefix">已选设备：</string>
+    <string name="bt_selected_none">未限制（任何蓝牙输出都可用，但仍会阻止外放/有线）</string>
+    <string name="bt_select_btn">选择蓝牙设备</string>
+    <string name="bt_no_bonded">未找到已配对设备，请先在系统蓝牙中配对。</string>
+    <string name="bt_permission_denied">未授予蓝牙权限，无法获取设备列表。</string>
+    <string name="bt_selected_missing">已选设备：（未找到已配对设备，仍按地址限制）</string>
+    <string name="bt_not_supported">当前设备不支持蓝牙</string>
 </resources>

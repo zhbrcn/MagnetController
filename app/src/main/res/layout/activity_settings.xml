@@ -244,8 +244,53 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:text="提示：两条逻辑并行：① 磁场持续低于设定阈值；② 磁场波动长期落在设定幅度内。建议阈值略高于地磁 (≈50 μT)，持续 3-5 秒更平滑。"
-                android:textColor="#888"
-                android:textSize="12sp" />
+            android:textColor="#888"
+            android:textSize="12sp" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:padding="16dp"
+            android:background="#FFFFFF"
+            android:elevation="2dp"
+            android:layout_marginBottom="16dp"
+            android:paddingBottom="20dp"
+            android:clipToPadding="false"
+            android:clipChildren="false"
+            android:stateListAnimator="@null"
+            android:translationZ="1dp">
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="@string/bt_title"
+                android:textStyle="bold"
+                android:textSize="16sp" />
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="@string/bt_desc"
+                android:textColor="#666"
+                android:textSize="13sp"
+                android:paddingBottom="10dp" />
+
+            <TextView
+                android:id="@+id/tvBtSelected"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="@string/bt_selected_none"
+                android:textColor="#374151"
+                android:textSize="14sp"
+                android:paddingBottom="8dp" />
+
+            <Button
+                android:id="@+id/btnSelectBt"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/bt_select_btn" />
         </LinearLayout>
 
         <LinearLayout

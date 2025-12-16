@@ -28,8 +28,12 @@ import android.hardware.SensorEventListener
 
 import android.hardware.SensorManager
 
+import android.bluetooth.BluetoothAdapter
+import android.bluetooth.BluetoothDevice
+import android.bluetooth.BluetoothManager
+import android.bluetooth.BluetoothProfile
+import android.media.AudioDeviceInfo
 import android.media.AudioManager
-
 import android.media.SoundPool
 
 import android.os.Build
@@ -182,6 +186,14 @@ class MagnetService : Service(), SensorEventListener {
 
     private var usePolarity = true
 
+    private var allowedBtDevices: Set<String> = emptySet()
+
+    private var lastRouteAllowed = true
+
+    private var lastRouteLogTime = 0L
+
+    private var lastRouteReason = ""
+
     private var soundPool: SoundPool? = null
 
     private val soundIds = mutableMapOf<String, Int>()
@@ -323,6 +335,8 @@ class MagnetService : Service(), SensorEventListener {
 
         usePolarity = prefs.poleMode == "different"
 
+        allowedBtDevices = prefs.allowedBtDevices
+
         belowEnergySince = 0L
 
         resetBelowSince = 0L
@@ -344,6 +358,12 @@ class MagnetService : Service(), SensorEventListener {
         strongSuppressionMin = 0f
 
         strongSuppressionMax = 0f
+
+        lastRouteAllowed = true
+
+        lastRouteLogTime = 0L
+
+        lastRouteReason = ""
 
         if (!usePolarity) {
 
@@ -871,6 +891,112 @@ class MagnetService : Service(), SensorEventListener {
 
 
 
+    private fun isAudioRouteAllowed(now: Long): Boolean {
+        val audioManager = getSystemService(Context.AUDIO_SERVICE) as AudioManager
+        val btTypes = setOf(
+            AudioDeviceInfo.TYPE_BLUETOOTH_A2DP,
+            AudioDeviceInfo.TYPE_BLUETOOTH_SCO,
+            AudioDeviceInfo.TYPE_BLE_HEADSET,
+            AudioDeviceInfo.TYPE_BLE_SPEAKER,
+            AudioDeviceInfo.TYPE_BLE_BROADCAST
+        )
+
+        val candidates = mutableListOf<Pair<String, String>>() // addr, name
+        try {
+            val outputs = audioManager.getDevices(AudioManager.GET_DEVICES_OUTPUTS)
+            outputs.filter { btTypes.contains(it.type) }.forEach { dev ->
+                val addr = try {
+                    dev.address.orEmpty()
+                } catch (_: SecurityException) {
+                    ""
+                }
+                val name = dev.productName?.toString().orEmpty()
+                candidates.add(addr to name)
+            }
+        } catch (_: Exception) {
+        }
+
+        // 补充已连接蓝牙配置文件设备
+        val (connAddrs, connNames) = getConnectedBluetoothIds()
+        connAddrs.forEach { candidates.add(it to "") }
+        connNames.forEach { candidates.add("" to it) }
+
+        var reason: String? = null
+        val allowedAddrs = allowedBtDevices.filter { it.contains(":") }.map { it.uppercase() }.toSet()
+        val allowedNames = allowedBtDevices.filter { it.startsWith("name::") }.map { it.removePrefix("name::").lowercase() }.toSet()
+
+        if (candidates.isEmpty()) {
+            reason = "未检测到蓝牙输出，已忽略触发（避免外放/有线）"
+            logToUI("⚠️ 未检测到蓝牙输出，已忽略触发（避免外放/有线）")
+        } else if (allowedBtDevices.isNotEmpty()) {
+            val matched = candidates.any { (addrRaw, nameRaw) ->
+                val addr = addrRaw.uppercase()
+                val name = nameRaw.lowercase()
+                val addrOk = addr.isNotBlank() && allowedAddrs.contains(addr)
+                val nameOk = name.isNotBlank() && allowedNames.any { allow -> name.contains(allow) || allow.contains(name) }
+                addrOk || nameOk
+            }
+            if (!matched) {
+                val names = candidates.map { it.second.ifBlank { it.first } }.filter { it.isNotBlank() }.distinct()
+                logToUI("⚠️ 当前连接音频设备 ${names.joinToString(" / ").ifBlank { "未知设备" }} 未匹配白名单，已忽略触发")
+                reason = "当前蓝牙设备未在白名单，已忽略触发"
+            } else {
+                val names = candidates.map { it.second.ifBlank { it.first } }.filter { it.isNotBlank() }.distinct()
+                if (names.isNotEmpty()) {
+                    logToUI("✅ 当前连接音频设备 ${names.joinToString(" / ")} 已匹配白名单")
+                } else {
+                    logToUI("✅ 蓝牙音频已连接且匹配白名单")
+                }
+            }
+        } else {
+            val names = candidates.map { it.second.ifBlank { it.first } }.filter { it.isNotBlank() }.distinct()
+            if (names.isNotEmpty()) {
+                logToUI("✅ 检测到蓝牙音频设备：${names.joinToString(" / ")}（未开启白名单限制）")
+            } else {
+                logToUI("✅ 检测到蓝牙音频输出（未开启白名单限制）")
+            }
+        }
+
+        val allowed = reason == null
+        if (!allowed && (lastRouteReason != reason || now - lastRouteLogTime > 2000)) {
+            lastRouteLogTime = now
+            lastRouteReason = reason ?: ""
+        } else if (allowed) {
+            lastRouteReason = ""
+        }
+        lastRouteAllowed = allowed
+        return allowed
+    }
+
+    private fun getConnectedBluetoothIds(): Pair<Set<String>, Set<String>> {
+        return try {
+            val manager = getSystemService(Context.BLUETOOTH_SERVICE) as BluetoothManager
+            val profiles = listOf(
+                BluetoothProfile.HEADSET,
+                BluetoothProfile.A2DP,
+                BluetoothProfile.HEARING_AID
+            )
+            val addrSet = mutableSetOf<String>()
+            val nameSet = mutableSetOf<String>()
+            profiles.forEach { profile ->
+                try {
+                    val devices = manager.getConnectedDevices(profile)
+                    devices.forEach { dev ->
+                        addrSet.add(dev.address.uppercase())
+                        dev.name?.let { nameSet.add(it.lowercase()) }
+                    }
+                } catch (_: SecurityException) {
+                } catch (_: Exception) {
+                }
+            }
+            addrSet to nameSet
+        } catch (_: Exception) {
+            emptySet<String>() to emptySet()
+        }
+    }
+
+
+
     private fun updatePolarity(x: Float, y: Float, z: Float, magnitude: Float, now: Long): String {
 
         val instantPole = classifyPole(x, z)
@@ -1082,6 +1208,7 @@ class MagnetService : Service(), SensorEventListener {
 
 
     private fun processLogic(x: Float, zValue: Float, magnitude: Float, now: Long, poleForUi: String) {
+        val routeAllowed = isAudioRouteAllowed(now)
 
         if (handleStrongSuppression(magnitude, now)) return
 
@@ -1155,9 +1282,7 @@ class MagnetService : Service(), SensorEventListener {
 
                     val action = selectActionForPole(poleForAction, true)
 
-
-
-                    performAction(action)
+                    performAction(action, routeAllowed)
 
                     isLongPressTriggered = true
 
@@ -1195,9 +1320,7 @@ class MagnetService : Service(), SensorEventListener {
 
                     val action = selectActionForPole(poleForAction, false)
 
-
-
-                    performAction(action)
+                    performAction(action, routeAllowed)
 
                     lastActionTime = now
 
@@ -1365,28 +1488,39 @@ class MagnetService : Service(), SensorEventListener {
 
 
 
-    private fun performAction(action: String) {
+    private fun performAction(action: String, allowed: Boolean) {
+        val label = when (action) {
+            "voice" -> "语音助手"
+            "next" -> "下一曲"
+            "previous" -> "上一曲"
+            "volume_up" -> "音量 +"
+            "volume_down" -> "音量 -"
+            "play_pause", "media" -> "播放/暂停"
+            else -> "播放/暂停"
+        }
 
+        if (!allowed) {
+            logAction(label, false)
+            return
+        }
+
+        logAction(label, true)
         playActionSound(action)
 
         when (action) {
-
             "voice" -> triggerVoiceAssistant(alreadyPlayedSound = true)
-
-            "next" -> triggerMediaKey(KeyEvent.KEYCODE_MEDIA_NEXT, "下一曲")
-
-            "previous" -> triggerMediaKey(KeyEvent.KEYCODE_MEDIA_PREVIOUS, "上一曲")
-
-            "volume_up" -> adjustVolume(AudioManager.ADJUST_RAISE, "音量 +")
-
-            "volume_down" -> adjustVolume(AudioManager.ADJUST_LOWER, "音量 -")
-
-            "play_pause", "media" -> triggerMediaKey(KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE, "播放/暂停")
-
-            else -> triggerMediaKey(KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE, "播放/暂停")
-
+            "next" -> triggerMediaKey(KeyEvent.KEYCODE_MEDIA_NEXT)
+            "previous" -> triggerMediaKey(KeyEvent.KEYCODE_MEDIA_PREVIOUS)
+            "volume_up" -> adjustVolume(AudioManager.ADJUST_RAISE)
+            "volume_down" -> adjustVolume(AudioManager.ADJUST_LOWER)
+            "play_pause", "media" -> triggerMediaKey(KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE)
+            else -> triggerMediaKey(KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE)
         }
+    }
 
+    private fun logAction(label: String, executed: Boolean) {
+        val suffix = if (executed) "[已执行]" else "[未执行]"
+        logToUI("▶️ $label $suffix")
     }
 
 
@@ -1647,50 +1781,28 @@ class MagnetService : Service(), SensorEventListener {
 
 
 
-    private fun triggerMediaKey(keyCode: Int, label: String) {
-
-        logToUI("▶️ $label")
-
+    private fun triggerMediaKey(keyCode: Int) {
         val audioManager = getSystemService(Context.AUDIO_SERVICE) as AudioManager
-
         val eventTime = System.currentTimeMillis()
-
         val keyEventDown = KeyEvent(eventTime, eventTime, KeyEvent.ACTION_DOWN, keyCode, 0)
-
         val keyEventUp = KeyEvent(eventTime, eventTime, KeyEvent.ACTION_UP, keyCode, 0)
-
         try {
-
             audioManager.dispatchMediaKeyEvent(keyEventDown)
-
             audioManager.dispatchMediaKeyEvent(keyEventUp)
-
         } catch (e: Exception) {
-
             logToUI("⚠️ 媒体按键失败: ${e.message}")
-
         }
-
     }
 
 
 
-    private fun adjustVolume(direction: Int, label: String) {
-
+    private fun adjustVolume(direction: Int) {
         val audioManager = getSystemService(Context.AUDIO_SERVICE) as AudioManager
-
-        logToUI("? $label")
-
         try {
-
             audioManager.adjustStreamVolume(AudioManager.STREAM_MUSIC, direction, AudioManager.FLAG_SHOW_UI)
-
         } catch (e: Exception) {
-
             logToUI("⚠️ 音量调整失败: ${e.message}")
-
         }
-
     }
 
 

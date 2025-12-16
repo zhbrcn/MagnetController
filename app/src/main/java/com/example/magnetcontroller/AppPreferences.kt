@@ -110,6 +110,10 @@ class AppPreferences(context: Context) {
         get() = getAction("s_long_action", "voice")
         set(value) = setAction("s_long_action", value)
 
+    var allowedBtDevices: Set<String>
+        get() = prefs.getStringSet("allowed_bt_devices", emptySet())?.toSet() ?: emptySet()
+        set(value) = prefs.edit().putStringSet("allowed_bt_devices", value.toSet()).apply()
+
     private fun getAction(key: String, default: String): String {
         val raw = prefs.getString(key, default) ?: default
         val normalized = when (raw) {

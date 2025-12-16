@@ -128,8 +128,12 @@ class MainActivity : AppCompatActivity() {
 
     private fun addLog(message: String) {
         if (message.isBlank()) return
+        if (message.startsWith("⚠️") || message.startsWith("✅")) {
+            binding.tvRouteHint.text = message
+            return
+        }
         logBuffer.add(0, message)
-        if (logBuffer.size > 5) {
+        if (logBuffer.size > 10) {
             logBuffer.removeLast()
         }
         binding.tvLog.text = logBuffer.joinToString("\n")

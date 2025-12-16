@@ -136,6 +136,14 @@
                 android:textColor="#6B7280"
                 android:textSize="14sp" />
         </LinearLayout>
+
+        <TextView
+            android:id="@+id/tvRouteHint"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:textColor="#4B5563"
+            android:textSize="12sp"
+            android:layout_marginTop="6dp" />
     </LinearLayout>
 
     <LinearLayout
@@ -167,7 +175,7 @@
             android:textColor="#4B5563"
             android:textSize="12sp"
             android:layout_marginTop="6dp"
-            android:maxLines="5" />
+            android:maxLines="10" />
 
         <TextView
             android:layout_width="match_parent"

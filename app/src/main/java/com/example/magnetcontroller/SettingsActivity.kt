@@ -1,10 +1,19 @@
 package com.example.magnetcontroller
 
+import android.Manifest
+import android.bluetooth.BluetoothAdapter
+import android.bluetooth.BluetoothDevice
 import android.content.Intent
+import android.content.pm.PackageManager
+import android.os.Build
 import android.os.Bundle
 import android.view.View
 import android.widget.ArrayAdapter
+import android.widget.Toast
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.content.ContextCompat
 import com.example.magnetcontroller.databinding.ActivitySettingsBinding
 import java.util.Locale
 
@@ -12,6 +21,14 @@ class SettingsActivity : AppCompatActivity() {
 
     private lateinit var binding: ActivitySettingsBinding
     private lateinit var prefs: AppPreferences
+    private val bluetoothAdapter: BluetoothAdapter? by lazy { BluetoothAdapter.getDefaultAdapter() }
+    private val btPermissionLauncher = registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        if (granted) {
+            showBluetoothPicker()
+        } else {
+            Toast.makeText(this, getString(R.string.bt_permission_denied), Toast.LENGTH_SHORT).show()
+        }
+    }
     private val actionOptions = listOf(
         ActionOption("play_pause", "播放 / 暂停"),
         ActionOption("next", "下一曲"),
@@ -30,6 +47,7 @@ class SettingsActivity : AppCompatActivity() {
         setupActionSpinners()
         loadSettings()
         setupListeners()
+        refreshBluetoothSummary()
     }
 
     private fun loadSettings() {
@@ -71,6 +89,10 @@ class SettingsActivity : AppCompatActivity() {
 
         binding.rgPoleMode.setOnCheckedChangeListener { _, _ ->
             updateActionVisibility()
+        }
+
+        binding.btnSelectBt.setOnClickListener {
+            ensureBluetoothPermissionAndPick()
         }
     }
 
@@ -168,6 +190,93 @@ class SettingsActivity : AppCompatActivity() {
         binding.groupSplitPoleActions.visibility = if (splitPoles) android.view.View.VISIBLE else android.view.View.GONE
         binding.etPolarityMin.isEnabled = splitPoles
         binding.etPolarityMax.isEnabled = splitPoles
+    }
+
+    private fun refreshBluetoothSummary() {
+        val allowed = prefs.allowedBtDevices
+        val bonded = getBondedDevices()
+        val map = bonded.associateBy { it.address.uppercase(Locale.US) }
+        val displayNames = allowed.mapNotNull { entry ->
+            when {
+                entry.startsWith("name::") -> entry.removePrefix("name::")
+                map.containsKey(entry.uppercase(Locale.US)) -> map[entry.uppercase(Locale.US)]?.name
+                else -> entry
+            }
+        }.filter { it.isNotBlank() }.distinct()
+        val text = when {
+            allowed.isEmpty() -> getString(R.string.bt_selected_none)
+            displayNames.isEmpty() -> getString(R.string.bt_selected_missing)
+            else -> getString(R.string.bt_selected_prefix) + displayNames.joinToString("、")
+        }
+        binding.tvBtSelected.text = text
+        binding.btnSelectBt.isEnabled = bluetoothAdapter != null
+        if (bluetoothAdapter == null) {
+            binding.tvBtSelected.text = getString(R.string.bt_not_supported)
+        }
+    }
+
+    private fun ensureBluetoothPermissionAndPick() {
+        if (bluetoothAdapter == null) {
+            Toast.makeText(this, getString(R.string.bt_not_supported), Toast.LENGTH_SHORT).show()
+            return
+        }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            val granted = ContextCompat.checkSelfPermission(this, Manifest.permission.BLUETOOTH_CONNECT) == PackageManager.PERMISSION_GRANTED
+            if (!granted) {
+                btPermissionLauncher.launch(Manifest.permission.BLUETOOTH_CONNECT)
+                return
+            }
+        }
+        showBluetoothPicker()
+    }
+
+    private fun showBluetoothPicker() {
+        val devices = getBondedDevices()
+        if (devices.isEmpty()) {
+            Toast.makeText(this, getString(R.string.bt_no_bonded), Toast.LENGTH_SHORT).show()
+            return
+        }
+        val allowed = prefs.allowedBtDevices.toMutableSet()
+        val names = devices.map { "${it.name ?: "未命名设备"} (${it.address})" }.toTypedArray()
+        val addresses = devices.map { it.address.uppercase(Locale.US) }.toTypedArray()
+        val checked = addresses.map { addr -> allowed.any { it.equals(addr, ignoreCase = true) } }.toBooleanArray()
+
+        AlertDialog.Builder(this)
+            .setTitle(getString(R.string.bt_title))
+            .setMultiChoiceItems(names, checked) { _, which, isChecked ->
+                val addr = addresses[which]
+                val nameKey = "name::${devices[which].name.orEmpty()}"
+                if (isChecked) {
+                    allowed.add(addr)
+                    allowed.add(nameKey)
+                } else {
+                    allowed.remove(addr)
+                    allowed.remove(nameKey)
+                }
+            }
+            .setPositiveButton("确定") { _, _ ->
+                // 补全名称兜底，防止部分机型地址空白
+                devices.forEachIndexed { index, device ->
+                    val addr = addresses[index]
+                    val nameKey = "name::${device.name.orEmpty()}"
+                    if (allowed.contains(addr)) {
+                        allowed.add(nameKey)
+                    }
+                }
+                prefs.allowedBtDevices = allowed
+                refreshBluetoothSummary()
+            }
+            .setNegativeButton("取消", null)
+            .show()
+    }
+
+    private fun getBondedDevices(): List<BluetoothDevice> {
+        if (bluetoothAdapter == null) return emptyList()
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            val granted = ContextCompat.checkSelfPermission(this, Manifest.permission.BLUETOOTH_CONNECT) == PackageManager.PERMISSION_GRANTED
+            if (!granted) return emptyList()
+        }
+        return bluetoothAdapter?.bondedDevices?.toList() ?: emptyList()
     }
 
     private data class ActionOption(val key: String, val label: String)
