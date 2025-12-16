@@ -4,9 +4,9 @@
     <string name="accessibility_description">用于模拟长按 Home 键唤醒语音助手</string>
 
     <!-- Main UI -->
-    <string name="main_title">雪场磁控</string>
-    <string name="main_subtitle">戴手套·熄屏也能控音乐</string>
-    <string name="manual_zero">⚡ 手动归零</string>
+    <string name="main_title">MagnetController</string>
+    <string name="main_subtitle"></string>
+    <string name="manual_zero">🔄 手动归零</string>
     <string name="open_settings">⚙️ 设置</string>
     <string name="pole_unknown">极性未检测</string>
     <string name="pole_all">极性不区分（全磁场触发）</string>
@@ -18,7 +18,7 @@
     <string name="status_long_pressed">已触发长按</string>
     <string name="log_recent">最近日志</string>
     <string name="log_waiting">等待事件...</string>
-    <string name="tip_text">小提示：滑雪时可将磁铁贴近耳机侧完成操作；若感觉漂移，点击手动归零或开启自动归零。</string>
+    <string name="tip_text">提示：磁铁靠近霍尔传感器触发，非指定蓝牙播放设备/外放时动作不会执行。</string>
     <string name="manual_zero_requested">已请求手动归零</string>
 
     <!-- Notifications -->
@@ -27,7 +27,7 @@
 
     <!-- Bluetooth gating -->
     <string name="bt_title">蓝牙设备白名单</string>
-    <string name="bt_desc">仅在连接选定的蓝牙耳机/音箱时才响应磁控，避免外放时误触发。</string>
+    <string name="bt_desc">仅在连接选定的蓝牙耳机/音箱时响应磁控，避免外放时误触发。</string>
     <string name="bt_selected_prefix">已选设备：</string>
     <string name="bt_selected_none">未限制（任何蓝牙输出都可用，但仍会阻止外放/有线）</string>
     <string name="bt_select_btn">选择蓝牙设备</string>

@@ -1,4 +1,4 @@
-package com.example.magnetcontroller
+﻿package com.example.magnetcontroller
 
 import android.Manifest
 import android.content.BroadcastReceiver
@@ -20,6 +20,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var binding: ActivityMainBinding
     private val logBuffer = mutableListOf<String>()
     private var lastUiUpdateTime = 0L
+    private val maxLogs = 100
 
     private val updateReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
@@ -31,7 +32,8 @@ class MainActivity : AppCompatActivity() {
                     val mag = intent.getFloatExtra("mag", 0f)
                     val pole = intent.getStringExtra("pole") ?: "none"
                     val status = intent.getStringExtra("status") ?: ""
-                    throttleUiUpdate(x, y, z, mag, pole, status)
+                    val sampleHz = intent.getFloatExtra("sample_hz", 0f)
+                    throttleUiUpdate(x, y, z, mag, pole, status, sampleHz)
                 }
                 "com.example.magnetcontroller.UPDATE_LOG" -> {
                     val log = intent.getStringExtra("log") ?: ""
@@ -54,6 +56,7 @@ class MainActivity : AppCompatActivity() {
         binding = ActivityMainBinding.inflate(layoutInflater)
         setContentView(binding.root)
 
+        applyTitleSpan()
         requestNotificationPermissionIfNeeded()
         startMagnetService()
 
@@ -91,29 +94,32 @@ class MainActivity : AppCompatActivity() {
         unregisterReceiver(updateReceiver)
     }
 
-    private fun throttleUiUpdate(x: Float, y: Float, z: Float, magnitude: Float, pole: String, status: String) {
+    private fun throttleUiUpdate(x: Float, y: Float, z: Float, magnitude: Float, pole: String, status: String, sampleHz: Float) {
         val now = System.currentTimeMillis()
         if (now - lastUiUpdateTime > 100) {
-            binding.tvX.text = String.format(Locale.US, "X: %.1f", x)
-            binding.tvY.text = String.format(Locale.US, "Y: %.1f", y)
-            binding.tvZ.text = String.format(Locale.US, "Z: %.1f", z)
-            binding.tvMagnitude.text = String.format(Locale.US, "%.0f μT", magnitude)
-
-            val poleText = when (pole) {
-                "N" -> getString(R.string.pole_n)
-                "S" -> getString(R.string.pole_s)
-                "all" -> getString(R.string.pole_all)
-                else -> getString(R.string.pole_unknown)
+            val nsText = when (pole) {
+                "N" -> "N极"
+                "S" -> "S极"
+                "all" -> "全部"
+                else -> "--"
             }
-            binding.tvPoleType.text = poleText
-            binding.tvPoleType.setTextColor(
-                when (pole) {
-                    "N" -> Color.parseColor("#60A5FA")
-                    "S" -> Color.parseColor("#FCA5A5")
-                    "all" -> Color.parseColor("#6B7280")
-                    else -> Color.parseColor("#9FB0D3")
+            val rateText = if (sampleHz >= 40f) "高采样" else "低采样"
+            val combined = String.format(Locale.US, "%-10s %-4s %s", String.format(Locale.US, "%.1f μT", magnitude), nsText, rateText)
+            val span = android.text.SpannableString(combined)
+            val nsStart = combined.indexOf(nsText)
+            if (nsStart >= 0) {
+                val color = when (pole) {
+                    "N" -> Color.parseColor("#2563EB")
+                    "S" -> Color.parseColor("#DC2626")
+                    else -> Color.parseColor("#4B5563")
                 }
-            )
+                span.setSpan(android.text.style.ForegroundColorSpan(color), nsStart, nsStart + nsText.length, android.text.Spannable.SPAN_EXCLUSIVE_EXCLUSIVE)
+            }
+            binding.tvCombined.text = span
+
+            binding.tvXBlock.text = String.format(Locale.US, "X %.1f μT", x)
+            binding.tvYBlock.text = String.format(Locale.US, "Y %.1f μT", y)
+            binding.tvZBlock.text = String.format(Locale.US, "Z %.1f μT", z)
 
             val statusText = if (status.isBlank()) getString(R.string.status_listening) else status
             binding.tvStatus.text = getString(R.string.status_prefix, statusText)
@@ -122,7 +128,7 @@ class MainActivity : AppCompatActivity() {
                 statusText.contains("触发") -> Color.parseColor("#34D399")
                 statusText.contains("计时") -> Color.parseColor("#FBBF24")
                 statusText.contains("冷却") -> Color.parseColor("#A78BFA")
-                else -> Color.parseColor("#E5E7EB")
+                else -> Color.parseColor("#0F172A")
             }
             binding.tvStatus.setTextColor(statusColor)
             lastUiUpdateTime = now
@@ -144,7 +150,7 @@ class MainActivity : AppCompatActivity() {
             return
         }
         logBuffer.add(0, message)
-        if (logBuffer.size > 10) {
+        if (logBuffer.size > maxLogs) {
             logBuffer.removeLast()
         }
         binding.tvLog.text = logBuffer.joinToString("\n")
@@ -152,7 +158,7 @@ class MainActivity : AppCompatActivity() {
 
     private fun applyRecentLogs(logs: List<String>) {
         logBuffer.clear()
-        logBuffer.addAll(logs.takeLast(10).reversed())
+        logBuffer.addAll(logs.takeLast(maxLogs).reversed())
         binding.tvLog.text = logBuffer.joinToString("\n")
     }
 
@@ -164,4 +170,14 @@ class MainActivity : AppCompatActivity() {
             }
         }
     }
+
+    private fun applyTitleSpan() {
+        val text = "MagnetController"
+        val split = "Magnet".length
+        val span = android.text.SpannableString(text)
+        span.setSpan(android.text.style.ForegroundColorSpan(Color.parseColor("#2563EB")), 0, split, android.text.Spannable.SPAN_EXCLUSIVE_EXCLUSIVE)
+        span.setSpan(android.text.style.ForegroundColorSpan(Color.parseColor("#DC2626")), split, text.length, android.text.Spannable.SPAN_EXCLUSIVE_EXCLUSIVE)
+        binding.tvTitle.text = span
+    }
 }
+

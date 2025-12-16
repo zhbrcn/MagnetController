@@ -7,7 +7,6 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
-import android.view.View
 import android.widget.ArrayAdapter
 import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
@@ -29,6 +28,7 @@ class SettingsActivity : AppCompatActivity() {
             Toast.makeText(this, getString(R.string.bt_permission_denied), Toast.LENGTH_SHORT).show()
         }
     }
+
     private val actionOptions = listOf(
         ActionOption("play_pause", "播放 / 暂停"),
         ActionOption("next", "下一曲"),
@@ -55,8 +55,6 @@ class SettingsActivity : AppCompatActivity() {
         binding.etThresholdReset.setText(prefs.thresholdReset.toInt().toString())
         binding.etResetDebounce.setText(prefs.thresholdResetDebounceMs.toString())
         binding.etLongPressMs.setText(prefs.longPressDuration.toString())
-        binding.etPolarityMin.setText(prefs.polarityMin.toInt().toString())
-        binding.etPolarityMax.setText(prefs.polarityMax.toInt().toString())
         binding.etEnergyThreshold.setText(prefs.energySaveThreshold.toInt().toString())
         binding.etEnergyHoldMs.setText(prefs.energySaveHoldMs.toString())
         binding.etSamplingHighHz.setText(prefs.samplingHighRateHz.toString())
@@ -109,14 +107,6 @@ class SettingsActivity : AppCompatActivity() {
 
         prefs.thresholdResetDebounceMs = binding.etResetDebounce.text.toString().toLongOrNull() ?: 80L
         prefs.longPressDuration = binding.etLongPressMs.text.toString().toLongOrNull() ?: 1500L
-
-        var polarityMin = binding.etPolarityMin.text.toString().toFloatOrNull() ?: 50f
-        var polarityMax = binding.etPolarityMax.text.toString().toFloatOrNull() ?: 2000f
-        if (polarityMin > polarityMax) {
-            polarityMax = polarityMin + 10f
-        }
-        prefs.polarityMin = polarityMin
-        prefs.polarityMax = polarityMax
 
         prefs.energySaveThreshold = binding.etEnergyThreshold.text.toString().toFloatOrNull() ?: 100f
         prefs.energySaveHoldMs = binding.etEnergyHoldMs.text.toString().toLongOrNull() ?: 2000L
@@ -190,8 +180,6 @@ class SettingsActivity : AppCompatActivity() {
         val splitPoles = binding.rbDifferent.isChecked
         binding.groupAllPoleActions.visibility = if (splitPoles) android.view.View.GONE else android.view.View.VISIBLE
         binding.groupSplitPoleActions.visibility = if (splitPoles) android.view.View.VISIBLE else android.view.View.GONE
-        binding.etPolarityMin.isEnabled = splitPoles
-        binding.etPolarityMax.isEnabled = splitPoles
     }
 
     private fun refreshBluetoothSummary() {
@@ -208,7 +196,7 @@ class SettingsActivity : AppCompatActivity() {
         val text = when {
             allowed.isEmpty() -> getString(R.string.bt_selected_none)
             displayNames.isEmpty() -> getString(R.string.bt_selected_missing)
-            else -> getString(R.string.bt_selected_prefix) + displayNames.joinToString("、")
+            else -> getString(R.string.bt_selected_prefix) + displayNames.joinToString(" / ")
         }
         binding.tvBtSelected.text = text
         binding.btnSelectBt.isEnabled = bluetoothAdapter != null
@@ -257,7 +245,6 @@ class SettingsActivity : AppCompatActivity() {
                 }
             }
             .setPositiveButton("确定") { _, _ ->
-                // 补全名称兜底，防止部分机型地址空白
                 devices.forEachIndexed { index, device ->
                     val addr = addresses[index]
                     val nameKey = "name::${device.name.orEmpty()}"

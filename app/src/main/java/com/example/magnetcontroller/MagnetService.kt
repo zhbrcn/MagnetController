@@ -84,6 +84,7 @@ class MagnetService : Service(), SensorEventListener {
     private var samplingLowDelayUs = 66_000
     private var currentDelayUs = 0
     private var belowEnergySince = 0L
+    private var pendingInitialZero = true
 
     private var autoZeroThreshold = 80f
     private var autoZeroDurationMs = 4000L
@@ -115,7 +116,7 @@ class MagnetService : Service(), SensorEventListener {
     private val noiseMultiplier = 3.0f
 
     private val recentLogs = ArrayDeque<String>()
-    private val maxRecentLogs = 20
+    private val maxRecentLogs = 100
 
     private val settingsReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
@@ -197,7 +198,6 @@ class MagnetService : Service(), SensorEventListener {
         noiseSamples = 0
         state = State.IDLE
         lastRouteLog = null
-
         if (magnetometer != null) {
             applySamplingDelay(samplingHighDelayUs)
         }
@@ -219,11 +219,13 @@ class MagnetService : Service(), SensorEventListener {
         val pendingIntent = PendingIntent.getActivity(this, 0, notificationIntent, PendingIntent.FLAG_IMMUTABLE)
 
         val notification: Notification = NotificationCompat.Builder(this, CHANNEL_ID)
-            .setContentTitle("磁控服务已启动")
-            .setContentText("前台运行中，保证磁力控制稳定")
-            .setSmallIcon(android.R.drawable.ic_menu_compass)
+            .setContentTitle("磁控助手后台运行")
+            .setContentText("保持后台以便磁控响应")
+            .setSmallIcon(R.drawable.ic_magnet)
             .setContentIntent(pendingIntent)
             .setPriority(NotificationCompat.PRIORITY_MIN)
+            .setSilent(true)
+            .setOngoing(true)
             .build()
 
         startForeground(1, notification)
@@ -234,9 +236,13 @@ class MagnetService : Service(), SensorEventListener {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val serviceChannel = NotificationChannel(
                 CHANNEL_ID,
-                "Magnet Service Channel",
+                "磁控助手前台",
                 NotificationManager.IMPORTANCE_MIN
-            )
+            ).apply {
+                setSound(null, null)
+                enableVibration(false)
+                setShowBadge(false)
+            }
             val manager = getSystemService(NotificationManager::class.java)
             manager.createNotificationChannel(serviceChannel)
         }
@@ -263,7 +269,6 @@ class MagnetService : Service(), SensorEventListener {
         sensorManager.unregisterListener(this, magnetometer)
         sensorManager.registerListener(this, magnetometer, delayUs, delayUs)
         currentDelayUs = delayUs
-        logToUI("采样频率已切换为 ${"%.1f".format(1_000_000f / delayUs)} Hz")
     }
 
     private fun hzToDelayUs(hz: Float, defaultDelayUs: Int): Int {
@@ -307,6 +312,11 @@ class MagnetService : Service(), SensorEventListener {
         lastRawX = event.values[0]
         lastRawY = event.values[1]
         lastRawZ = event.values[2]
+
+        if (pendingInitialZero) {
+            pendingInitialZero = false
+            resetBaseline("启动自动归零")
+        }
 
         val x = lastRawX - zeroOffsetX
         val y = lastRawY - zeroOffsetY
@@ -796,29 +806,29 @@ class MagnetService : Service(), SensorEventListener {
                 addrOk || nameOk
             }
             if (!matched) {
-                val names = candidates.map { it.second.ifBlank { it.first } }.filter { it.isNotBlank() }.distinct()
-                routeMessage = "⚠️ 当前连接设备 ${names.joinToString(" / ").ifBlank { "未知设备" }} 不在白名单，动作不执行"
+                val namesNotAllowed = candidates.map { it.second.ifBlank { it.first } }.filter { it.isNotBlank() }.distinct()
+                routeMessage = "⚠️ 当前连接设备 ${namesNotAllowed.joinToString(" / ").ifBlank { "未知设备" }} 不在白名单，动作不执行"
                 reason = "已连接设备不在白名单"
             } else {
-                val names = candidates.map { it.second.ifBlank { it.first } }.filter { it.isNotBlank() }.distinct()
-                if (names.isNotEmpty()) {
-                    routeMessage = "✅ 已连接允许的设备: ${names.joinToString(" / ")}"
+                val namesAllowed = candidates.map { it.second.ifBlank { it.first } }.filter { it.isNotBlank() }.distinct()
+                routeMessage = if (namesAllowed.isNotEmpty()) {
+                    "✅ 已连接允许的设备: ${namesAllowed.joinToString(" / ")}"
                 } else {
-                    routeMessage = "✅ 已连接白名单设备"
+                    "✅ 已连接白名单设备"
                 }
             }
         } else {
-            val names = candidates.map { it.second.ifBlank { it.first } }.filter { it.isNotBlank() }.distinct()
-            if (names.isNotEmpty()) {
-                routeMessage = "ℹ️ 已连接蓝牙音频：${names.joinToString(" / ")}"
+            val namesAny = candidates.map { it.second.ifBlank { it.first } }.filter { it.isNotBlank() }.distinct()
+            routeMessage = if (namesAny.isNotEmpty()) {
+                "ℹ️ 已连接蓝牙音频：${namesAny.joinToString(" / ")}"
             } else {
-                routeMessage = "ℹ️ 已连接蓝牙音频设备"
+                "ℹ️ 已连接蓝牙音频设备"
             }
         }
 
-        if (routeMessage != null && routeMessage != lastRouteLog) {
+        if (routeMessage != lastRouteLog) {
             lastRouteLog = routeMessage
-            logToUI(routeMessage)
+            routeMessage?.let { logToUI(it) }
         }
 
         return reason == null
@@ -834,6 +844,8 @@ class MagnetService : Service(), SensorEventListener {
         intent.putExtra("mag", mag)
         intent.putExtra("pole", pole)
         intent.putExtra("status", status)
+        val sampleHz = if (currentDelayUs > 0) 1_000_000f / currentDelayUs else 0f
+        intent.putExtra("sample_hz", sampleHz)
         intent.setPackage(packageName)
         sendBroadcast(intent)
     }
