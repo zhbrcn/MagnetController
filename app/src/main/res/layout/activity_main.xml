@@ -12,7 +12,7 @@
         android:id="@+id/tvTitle"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:text="雪场磁控"
+        android:text="@string/main_title"
         android:textSize="26sp"
         android:textStyle="bold"
         android:textColor="#1F2937"
@@ -23,7 +23,7 @@
         android:id="@+id/tvSubtitle"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:text="戴手套·息屏也能控音乐"
+        android:text="@string/main_subtitle"
         android:textColor="#5B6473"
         android:textSize="13sp"
         app:layout_constraintStart_toStartOf="@id/tvTitle"
@@ -43,7 +43,7 @@
             android:id="@+id/btnManualZero"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="⚡ 手动归零"
+            android:text="@string/manual_zero"
             android:backgroundTint="#E2E8F6"
             android:textColor="#1F2937"
             style="@style/Widget.AppCompat.Button.Borderless" />
@@ -52,7 +52,7 @@
             android:id="@+id/btnSettings"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="⚙️ 设置"
+            android:text="@string/open_settings"
             android:layout_marginStart="8dp"
             android:backgroundTint="#E2E8F6"
             android:textColor="#1F2937"
@@ -87,7 +87,7 @@
             android:id="@+id/tvPoleType"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="极性: 未检测"
+            android:text="@string/pole_unknown"
             android:textSize="18sp"
             android:textColor="#1F2937"
             android:layout_marginTop="4dp" />
@@ -96,7 +96,7 @@
             android:id="@+id/tvStatus"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="状态: 监听中"
+            android:text="@string/status_prefix"
             android:textColor="#374151"
             android:layout_marginTop="8dp" />
 
@@ -155,7 +155,7 @@
         <TextView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="最近日志"
+            android:text="@string/log_recent"
             android:textStyle="bold"
             android:textColor="#1F2937" />
 
@@ -163,7 +163,7 @@
             android:id="@+id/tvLog"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="等待事件..."
+            android:text="@string/log_waiting"
             android:textColor="#4B5563"
             android:textSize="12sp"
             android:layout_marginTop="6dp"
@@ -172,7 +172,7 @@
         <TextView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="小提示：滑雪时可将磁铁贴近耳机侧完成操作；若感觉漂移，点击手动归零或开启自动归零。"
+            android:text="@string/tip_text"
             android:textColor="#6B7280"
             android:textSize="11sp"
             android:layout_marginTop="10dp" />

@@ -2,4 +2,27 @@
 <resources>
     <string name="app_name">MagnetController</string>
     <string name="accessibility_description">用于模拟长按 Home 键唤醒语音助手</string>
+
+    <!-- Main UI -->
+    <string name="main_title">雪场磁控</string>
+    <string name="main_subtitle">戴手套·息屏也能控音乐</string>
+    <string name="manual_zero">⚡ 手动归零</string>
+    <string name="open_settings">⚙️ 设置</string>
+    <string name="pole_unknown">极性 未检测</string>
+    <string name="pole_all">极性 不区分（全磁场触发）</string>
+    <string name="pole_n">极性 N极(北极)</string>
+    <string name="pole_s">极性 S极(南极)</string>
+    <string name="status_prefix">状态 %1$s</string>
+    <string name="status_listening">监听中...</string>
+    <string name="status_detecting">检测到磁铁 (计时中...)</string>
+    <string name="status_long_pressed">已触发长按</string>
+    <string name="log_recent">最近日志</string>
+    <string name="log_waiting">等待事件...</string>
+    <string name="tip_text">小提示：滑雪时可将磁铁贴近耳机侧完成操作；若感觉漂移，点击手动归零或开启自动归零。</string>
+    <string name="manual_zero_requested">已请求手动归零</string>
+
+    <!-- Notifications -->
+    <string name="notification_running">磁力服务运行中</string>
+    <string name="notification_listening">正在后台监听磁场变化...</string>
+    <string name="notification_voice">唤醒助手</string>
 </resources>

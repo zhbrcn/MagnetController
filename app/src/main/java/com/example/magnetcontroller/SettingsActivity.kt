@@ -75,16 +75,37 @@ class SettingsActivity : AppCompatActivity() {
     }
 
     private fun saveSettings() {
-        prefs.thresholdTrigger = binding.etThresholdTrigger.text.toString().toFloatOrNull() ?: 500f
-        prefs.thresholdReset = binding.etThresholdReset.text.toString().toFloatOrNull() ?: 300f
+        var trigger = binding.etThresholdTrigger.text.toString().toFloatOrNull() ?: 500f
+        var reset = binding.etThresholdReset.text.toString().toFloatOrNull() ?: 300f
+        if (reset >= trigger) {
+            reset = (trigger * 0.6f).coerceAtLeast(50f)
+            trigger = reset + 10f
+        }
+        prefs.thresholdTrigger = trigger
+        prefs.thresholdReset = reset
+
         prefs.thresholdResetDebounceMs = binding.etResetDebounce.text.toString().toLongOrNull() ?: 80L
         prefs.longPressDuration = binding.etLongPressMs.text.toString().toLongOrNull() ?: 1500L
-        prefs.polarityMin = binding.etPolarityMin.text.toString().toFloatOrNull() ?: 50f
-        prefs.polarityMax = binding.etPolarityMax.text.toString().toFloatOrNull() ?: 2000f
+
+        var polarityMin = binding.etPolarityMin.text.toString().toFloatOrNull() ?: 50f
+        var polarityMax = binding.etPolarityMax.text.toString().toFloatOrNull() ?: 2000f
+        if (polarityMin > polarityMax) {
+            polarityMax = polarityMin + 10f
+        }
+        prefs.polarityMin = polarityMin
+        prefs.polarityMax = polarityMax
+
         prefs.energySaveThreshold = binding.etEnergyThreshold.text.toString().toFloatOrNull() ?: 100f
         prefs.energySaveHoldMs = binding.etEnergyHoldMs.text.toString().toLongOrNull() ?: 2000L
-        prefs.samplingHighRateHz = binding.etSamplingHighHz.text.toString().toFloatOrNull() ?: 50f
-        prefs.samplingLowRateHz = binding.etSamplingLowHz.text.toString().toFloatOrNull() ?: 15f
+
+        var samplingHigh = binding.etSamplingHighHz.text.toString().toFloatOrNull() ?: 50f
+        var samplingLow = binding.etSamplingLowHz.text.toString().toFloatOrNull() ?: 15f
+        if (samplingLow >= samplingHigh) {
+            samplingLow = (samplingHigh * 0.6f).coerceAtLeast(5f)
+        }
+        prefs.samplingHighRateHz = samplingHigh
+        prefs.samplingLowRateHz = samplingLow
+
         prefs.autoZeroThreshold = binding.etAutoZeroThreshold.text.toString().toFloatOrNull() ?: 80f
         prefs.autoZeroDurationMs = ((binding.etAutoZeroSeconds.text.toString().toFloatOrNull() ?: 4f) * 1000).toLong()
         prefs.autoZeroStabilityDurationMs = ((binding.etAutoZeroStableSeconds.text.toString().toFloatOrNull() ?: 4f) * 1000).toLong()

@@ -1,12 +1,15 @@
 package com.example.magnetcontroller
 
+import android.Manifest
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
+import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import com.example.magnetcontroller.databinding.ActivityMainBinding
 import java.util.Locale
@@ -18,18 +21,20 @@ class MainActivity : AppCompatActivity() {
 
     private val updateReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
-            if (intent?.action == "com.example.magnetcontroller.UPDATE_UI") {
-                val x = intent.getFloatExtra("x", 0f)
-                val y = intent.getFloatExtra("y", 0f)
-                val z = intent.getFloatExtra("z", 0f)
-                val mag = intent.getFloatExtra("mag", 0f)
-                val pole = intent.getStringExtra("pole") ?: "none"
-                val status = intent.getStringExtra("status") ?: ""
-
-                throttleUiUpdate(x, y, z, mag, pole, status)
-            } else if (intent?.action == "com.example.magnetcontroller.UPDATE_LOG") {
-                val log = intent.getStringExtra("log") ?: ""
-                addLog(log)
+            when (intent?.action) {
+                "com.example.magnetcontroller.UPDATE_UI" -> {
+                    val x = intent.getFloatExtra("x", 0f)
+                    val y = intent.getFloatExtra("y", 0f)
+                    val z = intent.getFloatExtra("z", 0f)
+                    val mag = intent.getFloatExtra("mag", 0f)
+                    val pole = intent.getStringExtra("pole") ?: "none"
+                    val status = intent.getStringExtra("status") ?: ""
+                    throttleUiUpdate(x, y, z, mag, pole, status)
+                }
+                "com.example.magnetcontroller.UPDATE_LOG" -> {
+                    val log = intent.getStringExtra("log") ?: ""
+                    addLog(log)
+                }
             }
         }
     }
@@ -41,6 +46,7 @@ class MainActivity : AppCompatActivity() {
         binding = ActivityMainBinding.inflate(layoutInflater)
         setContentView(binding.root)
 
+        requestNotificationPermissionIfNeeded()
         startMagnetService()
 
         binding.btnSettings.setOnClickListener {
@@ -84,10 +90,10 @@ class MainActivity : AppCompatActivity() {
             binding.tvMagnitude.text = String.format(Locale.US, "%.0f μT", magnitude)
 
             val poleText = when (pole) {
-                "N" -> "极性: N极 (北极)"
-                "S" -> "极性: S极 (南极)"
-                "all" -> "极性: 不区分（全磁场触发）"
-                else -> "极性: 未检测"
+                "N" -> getString(R.string.pole_n)
+                "S" -> getString(R.string.pole_s)
+                "all" -> getString(R.string.pole_all)
+                else -> getString(R.string.pole_unknown)
             }
             binding.tvPoleType.text = poleText
             binding.tvPoleType.setTextColor(
@@ -99,7 +105,8 @@ class MainActivity : AppCompatActivity() {
                 }
             )
 
-            binding.tvStatus.text = "状态: $status"
+            val statusText = if (status.isBlank()) getString(R.string.status_listening) else status
+            binding.tvStatus.text = getString(R.string.status_prefix, statusText)
 
             val statusColor = when {
                 status.contains("触发") -> android.graphics.Color.parseColor("#34D399")
@@ -116,14 +123,28 @@ class MainActivity : AppCompatActivity() {
             action = MagnetService.ACTION_ZERO_SENSOR
         }
         ContextCompat.startForegroundService(this, intent)
-        addLog("已请求手动归零")
+        addLog(getString(R.string.manual_zero_requested))
     }
 
     private fun addLog(message: String) {
+        if (message.isBlank()) return
         logBuffer.add(0, message)
         if (logBuffer.size > 5) {
             logBuffer.removeLast()
         }
         binding.tvLog.text = logBuffer.joinToString("\n")
+    }
+
+    private fun requestNotificationPermissionIfNeeded() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            val granted = ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED
+            if (!granted) {
+                ActivityCompat.requestPermissions(
+                    this,
+                    arrayOf(Manifest.permission.POST_NOTIFICATIONS),
+                    100
+                )
+            }
+        }
     }
 }
