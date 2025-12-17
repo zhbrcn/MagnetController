@@ -1,29 +1,39 @@
-<?xml version="1.0" encoding="utf-8"?>
+﻿<?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">MagnetController</string>
     <string name="accessibility_description">用于模拟长按 Home 键唤醒语音助手</string>
 
     <!-- Main UI -->
     <string name="main_title">MagnetController</string>
-    <string name="main_subtitle"></string>
-    <string name="manual_zero">🔔 手动归零</string>
+    <string name="main_subtitle">磁场手势控制</string>
+    <string name="manual_zero">🔄 手动归零</string>
     <string name="open_settings">⚙️ 设置</string>
-    <string name="pole_unknown">极性未检测</string>
-    <string name="pole_all">极性不区分（全磁场触发）</string>
-    <string name="pole_n">极性 N（北极）</string>
-    <string name="pole_s">极性 S（南极）</string>
+    <string name="pole_unknown_label">极性未检测</string>
+    <string name="pole_all_label">全部</string>
+    <string name="pole_n_label">N极</string>
+    <string name="pole_s_label">S极</string>
+    <string name="sampling_high">高采样</string>
+    <string name="sampling_low">低采样</string>
+    <string name="magnitude_value">%.1f μT</string>
+    <string name="axis_value">%1$s %2$.1f μT</string>
+    <string name="combined_value_format">%1$-10s %2$-4s %3$s</string>
     <string name="status_prefix">状态：%1$s</string>
-    <string name="status_listening">监听中...</string>
-    <string name="status_detecting">检测到磁场 (计时中...)</string>
+    <string name="status_idle">待机中...</string>
+    <string name="status_timing">按压计时中...</string>
+    <string name="status_timing_long">长按触发中...</string>
+    <string name="status_cooldown_only">冷却中...</string>
+    <string name="status_listening">待机中...</string>
+    <string name="status_detecting">检测到磁场 (计时中)</string>
     <string name="status_long_pressed">已触发长按</string>
-    <string name="log_recent">最近日志</string>
+    <string name="log_recent">运行日志</string>
     <string name="log_waiting">等待事件...</string>
-    <string name="tip_text">提示：磁铁靠近霍尔传感器触发，非白名单蓝牙播放设备/外放时不仅动作不执行，并且不会触发提示音或震动。</string>
+    <string name="tip_text">提示：磁铁靠近霍尔传感器触发，非白名单蓝牙播放设备外放时不仅动作不执行，并且不会触发提示音或震动。</string>
     <string name="manual_zero_requested">已请求手动归零</string>
 
     <!-- Notifications -->
-    <string name="notification_running">磁力服务运行中</string>
-    <string name="notification_listening">正在后台监听磁场变化...</string>
+    <string name="notification_running">磁控助手后台运行</string>
+    <string name="notification_listening">保持后台以便磁控响应</string>
+    <string name="notification_channel_name">磁控助手前台</string>
 
     <!-- Bluetooth gating -->
     <string name="bt_title">蓝牙设备白名单</string>
@@ -35,6 +45,10 @@
     <string name="bt_permission_denied">未授予蓝牙权限，无法获取设备列表。</string>
     <string name="bt_selected_missing">已选设备： （未找到已配对设备，仍按地址限制）</string>
     <string name="bt_not_supported">当前设备不支持蓝牙</string>
+    <string name="bt_allow_all_outputs">允许所有输出</string>
+    <string name="bt_allow_all_outputs_desc">忽略蓝牙白名单，允许本机和所有连接设备播放提示与动作。</string>
+    <string name="bt_unnamed_device">未命名设备</string>
+    <string name="dialog_bt_title">蓝牙设备</string>
 
     <!-- Feedback toggles -->
     <string name="feedback_title">触发反馈</string>
@@ -42,4 +56,107 @@
     <string name="feedback_sound">触发提示音</string>
     <string name="feedback_voice">语音播报</string>
     <string name="feedback_vibration">震动反馈</string>
+
+    <!-- Service logs -->
+    <string name="log_settings_reloaded">设置已重新加载</string>
+    <string name="log_fallback_calibrated_sensor">未找到未校准磁力计，已退回到已校准传感器</string>
+    <string name="log_register_sensor_failed">无法注册磁力计监听</string>
+    <string name="log_reset_baseline">已重置零点 (X=%1$d, Y=%2$d, Z=%3$d)</string>
+    <string name="log_auto_zero_low">场强低于 %1$d μT 持续 %2$.1f 秒</string>
+    <string name="log_auto_zero_stable">场强波动 ≤%1$d μT 持续 %2$.1f 秒</string>
+    <string name="log_strong_suppression">磁场过强且稳定，已忽略本次触发</string>
+    <string name="log_action_executed">动作 %1$s [已执行]</string>
+    <string name="log_action_skipped">动作 %1$s [未执行]</string>
+    <string name="log_wakelock_denied">申请 WAKE_LOCK 权限失败</string>
+    <string name="log_wakelock_error">申请唤醒锁失败：%1$s</string>
+    <string name="log_media_key_error">发送媒体键失败：%1$s</string>
+    <string name="log_volume_error">调整音量失败：%1$s</string>
+    <string name="log_route_allow_all">已启用“允许所有输出”，跳过蓝牙门控</string>
+    <string name="log_route_not_connected">当前未连接蓝牙音频设备，已阻止外放/有线输出</string>
+    <string name="log_route_connected_generic">已连接蓝牙音频：%1$s</string>
+    <string name="log_route_unknown_device">未知设备</string>
+    <string name="log_route_connected_allowed">已连接允许的设备：%1$s</string>
+    <string name="log_route_blocked">当前连接设备 %1$s 不在白名单，动作不执行</string>
+    <string name="log_sound_load_failed">加载音效失败 %1$s: %2$s</string>
+    <string name="log_voice_launch_error">启动语音助手失败</string>
+
+    <!-- Labels/actions -->
+    <string name="label_voice">语音助手</string>
+    <string name="label_next">下一曲</string>
+    <string name="label_previous">上一曲</string>
+    <string name="label_volume_up">音量 +</string>
+    <string name="label_volume_down">音量 -</string>
+    <string name="label_play_pause">播放/暂停</string>
+    <string name="log_title">运行日志</string>
+
+    <!-- Accessibility -->
+    <string name="content_desc_accessibility_enabled">无障碍已开启</string>
+    <string name="content_desc_accessibility_disabled">无障碍未开启</string>
+
+    <!-- Settings titles/descriptions -->
+    <string name="title_settings">后台调校</string>
+    <string name="title_threshold">触发阈值</string>
+    <string name="desc_threshold">超过“触发阈值”开始计时，降到“恢复阈值”且防抖结束后视为抬起。单位：μT / ms</string>
+    <string name="label_trigger_threshold">触发阈值(μT)</string>
+    <string name="label_reset_threshold">恢复阈值(μT)</string>
+    <string name="label_reset_debounce">恢复防抖(ms)</string>
+    <string name="label_long_press_detect">长按判定(ms)</string>
+
+    <string name="title_polarity_actions">极性与动作映射</string>
+    <string name="desc_polarity_actions">先选模式，再配置长/短按动作。极性判定不稳定时可关闭。</string>
+    <string name="label_mode_selection">模式选择</string>
+    <string name="label_all_modes">所有极性（只看磁场强度）</string>
+    <string name="label_split_modes">区分极性（单独配置 N / S）</string>
+    <string name="label_polarity_toggle">启用极性判定（无法稳定判定时自动降级）</string>
+    <string name="label_all_poles">不分极性动作</string>
+    <string name="label_short_press">短按动作</string>
+    <string name="label_long_press">长按动作</string>
+    <string name="label_n_short">N 极短按</string>
+    <string name="label_n_long">N 极长按</string>
+    <string name="label_s_short">S 极短按</string>
+    <string name="label_s_long">S 极长按</string>
+    <string name="prompt_pick_action">选择动作</string>
+
+    <string name="title_feedback">触发反馈</string>
+
+    <string name="title_auto_zero">自动归零</string>
+    <string name="desc_auto_zero">两条规则并行：① 场强持续低于阈值；② 场强波动长期落在指定幅度内。满足任一即归零。</string>
+    <string name="label_low_field_threshold">低磁场阈值(μT)</string>
+    <string name="label_low_field_duration">低磁场维持时间(秒)</string>
+    <string name="label_stable_duration">稳定波动维持时间(秒)</string>
+    <string name="label_stable_band">稳定波动幅度(±μT)</string>
+
+    <string name="title_energy_sampling">节能与采样</string>
+    <string name="desc_energy_sampling">低场时降低采样频率，节能同时保留灵敏度。单位：μT / ms / Hz</string>
+    <string name="label_energy_threshold">节能阈值(μT)</string>
+    <string name="label_energy_hold">降采样延时(ms)</string>
+    <string name="label_sampling_high">高采样频率(Hz)</string>
+    <string name="label_sampling_low">低采样频率(Hz)</string>
+
+    <string name="title_strong_suppression">强磁贴合保护</string>
+    <string name="desc_strong_suppression">强磁长时间贴合且波动极低时，忽略当前触发并用 3 声提示失败。单位：μT / ms</string>
+    <string name="label_strong_threshold">判定阈值(μT)</string>
+    <string name="label_duration_ms">持续时间(ms)</string>
+    <string name="label_max_jitter">最大抖动(μT)</string>
+
+    <string name="title_bt_whitelist">蓝牙白名单</string>
+    <string name="btn_save_settings">保存设置</string>
+    <string name="title_save_settings">保存设置</string>
+
+    <!-- Hints -->
+    <string name="hint_threshold_trigger">例如 500</string>
+    <string name="hint_threshold_reset">例如 300</string>
+    <string name="hint_reset_debounce">例如 80</string>
+    <string name="hint_long_press">例如 1500</string>
+    <string name="hint_energy_threshold">例如 100</string>
+    <string name="hint_energy_hold">例如 2000</string>
+    <string name="hint_sampling_high">例如 50</string>
+    <string name="hint_sampling_low">例如 15</string>
+    <string name="hint_auto_zero_threshold">例如 80</string>
+    <string name="hint_auto_zero_seconds">例如 4.0</string>
+    <string name="hint_auto_zero_stable_seconds">例如 4.0</string>
+    <string name="hint_auto_zero_band">例如 20.0</string>
+    <string name="hint_strong_suppression_threshold">例如 1800</string>
+    <string name="hint_strong_suppression_duration">例如 400</string>
+    <string name="hint_strong_suppression_jitter">例如 40</string>
 </resources>

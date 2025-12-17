@@ -16,6 +16,7 @@ import com.example.magnetcontroller.databinding.ActivityMainBinding
 import java.util.Locale
 
 class MainActivity : AppCompatActivity() {
+    private enum class LogCategory { ROUTE, ACTION, STATUS, ERROR, UNKNOWN }
 
     private lateinit var binding: ActivityMainBinding
     private val logBuffer = mutableListOf<String>()
@@ -41,7 +42,11 @@ class MainActivity : AppCompatActivity() {
                 }
                 "com.example.magnetcontroller.UPDATE_ACCESSIBILITY" -> {
                     val enabled = intent.getBooleanExtra("enabled", false)
-                    binding.tvStatus.contentDescription = if (enabled) "无障碍已开启" else "无障碍未开启"
+                    binding.tvStatus.contentDescription = if (enabled) {
+                        getString(R.string.content_desc_accessibility_enabled)
+                    } else {
+                        getString(R.string.content_desc_accessibility_disabled)
+                    }
                 }
                 "com.example.magnetcontroller.UPDATE_RECENT_LOGS" -> {
                     val logs = intent.getStringArrayListExtra("logs") ?: arrayListOf()
@@ -98,13 +103,14 @@ class MainActivity : AppCompatActivity() {
         val now = System.currentTimeMillis()
         if (now - lastUiUpdateTime > 100) {
             val nsText = when (pole) {
-                "N" -> "N极"
-                "S" -> "S极"
-                "all" -> "全部"
-                else -> "--"
+                "N" -> getString(R.string.pole_n_label)
+                "S" -> getString(R.string.pole_s_label)
+                "all" -> getString(R.string.pole_all_label)
+                else -> getString(R.string.pole_unknown_label)
             }
-            val rateText = if (sampleHz >= 40f) "高采样" else "低采样"
-            val combined = String.format(Locale.US, "%-10s %-4s %s", String.format(Locale.US, "%.1f μT", magnitude), nsText, rateText)
+            val rateText = if (sampleHz >= 40f) getString(R.string.sampling_high) else getString(R.string.sampling_low)
+            val magnitudeText = String.format(Locale.US, getString(R.string.magnitude_value), magnitude)
+            val combined = String.format(Locale.US, getString(R.string.combined_value_format), magnitudeText, nsText, rateText)
             val span = android.text.SpannableString(combined)
             val nsStart = combined.indexOf(nsText)
             if (nsStart >= 0) {
@@ -117,17 +123,17 @@ class MainActivity : AppCompatActivity() {
             }
             binding.tvCombined.text = span
 
-            binding.tvXBlock.text = String.format(Locale.US, "X %.1f μT", x)
-            binding.tvYBlock.text = String.format(Locale.US, "Y %.1f μT", y)
-            binding.tvZBlock.text = String.format(Locale.US, "Z %.1f μT", z)
+            binding.tvXBlock.text = String.format(Locale.US, getString(R.string.axis_value), "X", x)
+            binding.tvYBlock.text = String.format(Locale.US, getString(R.string.axis_value), "Y", y)
+            binding.tvZBlock.text = String.format(Locale.US, getString(R.string.axis_value), "Z", z)
 
-            val statusText = if (status.isBlank()) getString(R.string.status_listening) else status
-            binding.tvStatus.text = getString(R.string.status_prefix, statusText)
+            val resolvedStatus = if (status.isBlank()) getString(R.string.status_listening) else status
+            binding.tvStatus.text = getString(R.string.status_prefix, resolvedStatus)
 
-            val statusColor = when {
-                statusText.contains("触发") -> Color.parseColor("#34D399")
-                statusText.contains("计时") -> Color.parseColor("#FBBF24")
-                statusText.contains("冷却") -> Color.parseColor("#A78BFA")
+            val statusColor = when (resolvedStatus) {
+                getString(R.string.status_timing), getString(R.string.status_detecting) -> Color.parseColor("#FBBF24")
+                getString(R.string.status_timing_long), getString(R.string.status_long_pressed) -> Color.parseColor("#34D399")
+                getString(R.string.status_cooldown_only) -> Color.parseColor("#A78BFA")
                 else -> Color.parseColor("#0F172A")
             }
             binding.tvStatus.setTextColor(statusColor)
@@ -145,11 +151,13 @@ class MainActivity : AppCompatActivity() {
 
     private fun addLog(message: String) {
         if (message.isBlank()) return
-        if (message.startsWith("⚠️") || message.startsWith("✅") || message.startsWith("ℹ️")) {
-            binding.tvRouteHint.text = message
+        val (category, content) = parseLogEntry(message)
+        if (category == LogCategory.ROUTE) {
+            binding.tvRouteHint.text = content
             return
         }
-        logBuffer.add(0, message)
+        val display = formatLogForDisplay(category, content)
+        logBuffer.add(0, display)
         if (logBuffer.size > maxLogs) {
             logBuffer.removeLast()
         }
@@ -158,8 +166,36 @@ class MainActivity : AppCompatActivity() {
 
     private fun applyRecentLogs(logs: List<String>) {
         logBuffer.clear()
-        logBuffer.addAll(logs.takeLast(maxLogs).reversed())
+        var latestRoute: String? = null
+        logs.takeLast(maxLogs).reversed().forEach { entry ->
+            val (category, content) = parseLogEntry(entry)
+            if (category == LogCategory.ROUTE) {
+                latestRoute = content
+            } else {
+                val display = formatLogForDisplay(category, content)
+                logBuffer.add(display)
+            }
+        }
         binding.tvLog.text = logBuffer.joinToString("\n")
+        latestRoute?.let { binding.tvRouteHint.text = it }
+    }
+
+    private fun formatLogForDisplay(category: LogCategory, content: String): String {
+        return when (category) {
+            LogCategory.UNKNOWN -> content
+            LogCategory.ROUTE -> content
+            else -> "[${category.name}] $content"
+        }
+    }
+
+    private fun parseLogEntry(message: String): Pair<LogCategory, String> {
+        return when {
+            message.startsWith("[ROUTE]") -> LogCategory.ROUTE to message.removePrefix("[ROUTE]").trim()
+            message.startsWith("[ACTION]") -> LogCategory.ACTION to message.removePrefix("[ACTION]").trim()
+            message.startsWith("[ERROR]") -> LogCategory.ERROR to message.removePrefix("[ERROR]").trim()
+            message.startsWith("[STATUS]") -> LogCategory.STATUS to message.removePrefix("[STATUS]").trim()
+            else -> LogCategory.UNKNOWN to message
+        }
     }
 
     private fun requestNotificationPermissionIfNeeded() {

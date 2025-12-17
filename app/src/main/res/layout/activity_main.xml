@@ -83,7 +83,8 @@
             android:id="@+id/tvCombined"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="0 μT  N  0.0 Hz"
+            android:text=""
+            tools:text="0 μT  N  0.0 Hz"
             android:textSize="24sp"
             android:textStyle="bold"
             android:textColor="#0B1224"
@@ -103,14 +104,15 @@
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
                 android:background="@drawable/bg_pill"
-                android:paddingLeft="8dp"
-                android:paddingRight="8dp"
-                android:paddingTop="4dp"
-                android:paddingBottom="4dp"
-                android:text="X 0.0 μT"
-                android:textColor="#1D4ED8"
-                android:textSize="13sp"
-                android:fontFamily="monospace" />
+            android:paddingLeft="8dp"
+            android:paddingRight="8dp"
+            android:paddingTop="4dp"
+            android:paddingBottom="4dp"
+            android:text=""
+            tools:text="X 0.0 μT"
+            android:textColor="#1D4ED8"
+            android:textSize="13sp"
+            android:fontFamily="monospace" />
 
             <TextView
                 android:id="@+id/tvYBlock"
@@ -120,14 +122,15 @@
                 android:layout_marginStart="6dp"
                 android:layout_marginEnd="6dp"
                 android:background="@drawable/bg_pill"
-                android:paddingLeft="8dp"
-                android:paddingRight="8dp"
-                android:paddingTop="4dp"
-                android:paddingBottom="4dp"
-                android:text="Y 0.0 μT"
-                android:textColor="#059669"
-                android:textSize="13sp"
-                android:fontFamily="monospace" />
+            android:paddingLeft="8dp"
+            android:paddingRight="8dp"
+            android:paddingTop="4dp"
+            android:paddingBottom="4dp"
+            android:text=""
+            tools:text="Y 0.0 μT"
+            android:textColor="#059669"
+            android:textSize="13sp"
+            android:fontFamily="monospace" />
 
             <TextView
                 android:id="@+id/tvZBlock"
@@ -135,14 +138,15 @@
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
                 android:background="@drawable/bg_pill"
-                android:paddingLeft="8dp"
-                android:paddingRight="8dp"
-                android:paddingTop="4dp"
-                android:paddingBottom="4dp"
-                android:text="Z 0.0 μT"
-                android:textColor="#EA580C"
-                android:textSize="13sp"
-                android:fontFamily="monospace" />
+            android:paddingLeft="8dp"
+            android:paddingRight="8dp"
+            android:paddingTop="4dp"
+            android:paddingBottom="4dp"
+            android:text=""
+            tools:text="Z 0.0 μT"
+            android:textColor="#EA580C"
+            android:textSize="13sp"
+            android:fontFamily="monospace" />
         </LinearLayout>
 
         <TextView
@@ -167,7 +171,7 @@
             android:textColor="#1F2937"
             android:textSize="13sp"
             android:layout_marginTop="8dp"
-            tools:text="✅ 已连接允许的设备: XXX" />
+            tools:text="Connected device: Demo" />
     </LinearLayout>
 
     <LinearLayout
@@ -187,7 +191,7 @@
         <TextView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="运行日志"
+            android:text="@string/log_title"
             android:textStyle="bold"
             android:textColor="#0F172A"
             android:textSize="15sp" />

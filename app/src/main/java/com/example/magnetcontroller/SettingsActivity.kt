@@ -29,14 +29,16 @@ class SettingsActivity : AppCompatActivity() {
         }
     }
 
-    private val actionOptions = listOf(
-        ActionOption("play_pause", "播放 / 暂停"),
-        ActionOption("next", "下一曲"),
-        ActionOption("previous", "上一曲"),
-        ActionOption("voice", "语音助手"),
-        ActionOption("volume_up", "音量 +"),
-        ActionOption("volume_down", "音量 -")
-    )
+    private val actionOptions by lazy {
+        listOf(
+            ActionOption("play_pause", getString(R.string.label_play_pause)),
+            ActionOption("next", getString(R.string.label_next)),
+            ActionOption("previous", getString(R.string.label_previous)),
+            ActionOption("voice", getString(R.string.label_voice)),
+            ActionOption("volume_up", getString(R.string.label_volume_up)),
+            ActionOption("volume_down", getString(R.string.label_volume_down))
+        )
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -82,6 +84,7 @@ class SettingsActivity : AppCompatActivity() {
         binding.switchFeedbackSound.isChecked = prefs.enableFeedbackSound
         binding.switchFeedbackVoice.isChecked = prefs.enableFeedbackVoice
         binding.switchFeedbackVibration.isChecked = prefs.enableFeedbackVibration
+        binding.switchAllowAllOutputs.isChecked = prefs.allowAllOutputs
 
         updateActionVisibility()
     }
@@ -91,6 +94,10 @@ class SettingsActivity : AppCompatActivity() {
 
         binding.rgPoleMode.setOnCheckedChangeListener { _, _ ->
             updateActionVisibility()
+        }
+
+        binding.switchAllowAllOutputs.setOnCheckedChangeListener { _, _ ->
+            refreshBluetoothSummary()
         }
 
         binding.btnSelectBt.setOnClickListener {
@@ -133,6 +140,7 @@ class SettingsActivity : AppCompatActivity() {
         prefs.enableFeedbackSound = binding.switchFeedbackSound.isChecked
         prefs.enableFeedbackVoice = binding.switchFeedbackVoice.isChecked
         prefs.enableFeedbackVibration = binding.switchFeedbackVibration.isChecked
+        prefs.allowAllOutputs = binding.switchAllowAllOutputs.isChecked
 
         prefs.poleMode = if (binding.rbDifferent.isChecked) "different" else "both"
 
@@ -167,7 +175,7 @@ class SettingsActivity : AppCompatActivity() {
             binding.spSLong
         ).forEach {
             it.adapter = adapter
-            it.prompt = "选择动作"
+            it.prompt = getString(R.string.prompt_pick_action)
         }
     }
 
@@ -189,6 +197,12 @@ class SettingsActivity : AppCompatActivity() {
     }
 
     private fun refreshBluetoothSummary() {
+        if (binding.switchAllowAllOutputs.isChecked) {
+            binding.tvBtSelected.text = getString(R.string.bt_allow_all_outputs_desc)
+            binding.btnSelectBt.isEnabled = false
+            return
+        }
+
         val allowed = prefs.allowedBtDevices
         val bonded = getBondedDevices()
         val map = bonded.associateBy { it.address.uppercase(Locale.US) }
@@ -233,7 +247,7 @@ class SettingsActivity : AppCompatActivity() {
             return
         }
         val allowed = prefs.allowedBtDevices.toMutableSet()
-        val names = devices.map { "${it.name ?: "未命名设备"} (${it.address})" }.toTypedArray()
+        val names = devices.map { "${it.name ?: getString(R.string.bt_unnamed_device)} (${it.address})" }.toTypedArray()
         val addresses = devices.map { it.address.uppercase(Locale.US) }.toTypedArray()
         val checked = addresses.map { addr -> allowed.any { it.equals(addr, ignoreCase = true) } }.toBooleanArray()
 
@@ -250,7 +264,7 @@ class SettingsActivity : AppCompatActivity() {
                     allowed.remove(nameKey)
                 }
             }
-            .setPositiveButton("确定") { _, _ ->
+            .setPositiveButton(android.R.string.ok) { _, _ ->
                 devices.forEachIndexed { index, device ->
                     val addr = addresses[index]
                     val nameKey = "name::${device.name.orEmpty()}"
@@ -261,7 +275,7 @@ class SettingsActivity : AppCompatActivity() {
                 prefs.allowedBtDevices = allowed
                 refreshBluetoothSummary()
             }
-            .setNegativeButton("取消", null)
+            .setNegativeButton(android.R.string.cancel, null)
             .show()
     }
 

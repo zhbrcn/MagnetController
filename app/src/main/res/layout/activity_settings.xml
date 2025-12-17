@@ -13,7 +13,7 @@
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="后台调校"
+            android:text="@string/title_settings"
             android:textSize="24sp"
             android:textStyle="bold"
             android:textColor="#0F172A" />
@@ -21,7 +21,7 @@
         <TextView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="滑雪戴手套时用磁铁控耳机，核心逻辑已精简，这里只保留必要的自定义项。"
+            android:text="@string/main_subtitle"
             android:textColor="#4B5563"
             android:textSize="13sp"
             android:paddingBottom="12dp"
@@ -39,7 +39,7 @@
             <TextView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:text="触发阈值"
+                android:text="@string/title_threshold"
                 android:textStyle="bold"
                 android:textSize="16sp"
                 android:textColor="#111827" />
@@ -47,7 +47,7 @@
             <TextView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:text="超过“触发阈值”开始计时，降到“恢复阈值”且防抖结束后视为抬起。单位：μT / ms"
+                android:text="@string/desc_threshold"
                 android:textColor="#6B7280"
                 android:textSize="12sp"
                 android:paddingBottom="10dp" />
@@ -55,7 +55,7 @@
             <TextView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:text="触发阈值 (μT)"
+                android:text="@string/label_trigger_threshold"
                 android:textColor="#374151"
                 android:textSize="14sp" />
 
@@ -64,13 +64,13 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:inputType="numberDecimal"
-                android:hint="例如 500"
+                android:hint="@string/hint_threshold_trigger"
                 android:layout_marginBottom="8dp" />
 
             <TextView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:text="恢复阈值 (μT)"
+                android:text="@string/label_reset_threshold"
                 android:textColor="#374151"
                 android:textSize="14sp" />
 
@@ -79,13 +79,13 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:inputType="numberDecimal"
-                android:hint="例如 300"
+                android:hint="@string/hint_threshold_reset"
                 android:layout_marginBottom="8dp" />
 
             <TextView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:text="恢复防抖 (ms)"
+                android:text="@string/label_reset_debounce"
                 android:textColor="#374151"
                 android:textSize="14sp" />
 
@@ -94,13 +94,13 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:inputType="number"
-                android:hint="例如 80"
+                android:hint="@string/hint_reset_debounce"
                 android:layout_marginBottom="8dp" />
 
             <TextView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:text="长按判定 (ms)"
+                android:text="@string/label_long_press_detect"
                 android:textColor="#374151"
                 android:textSize="14sp" />
 
@@ -109,7 +109,7 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:inputType="number"
-                android:hint="例如 1500" />
+                android:hint="@string/hint_long_press" />
         </LinearLayout>
 
         <!-- 极性与动作 -->
@@ -124,7 +124,7 @@
             <TextView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:text="极性与动作映射"
+                android:text="@string/title_polarity_actions"
                 android:textStyle="bold"
                 android:textSize="16sp"
                 android:textColor="#111827" />
@@ -132,7 +132,7 @@
             <TextView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:text="先选模式，再配置长/短按动作。极性判定不稳定时可关闭。"
+                android:text="@string/desc_polarity_actions"
                 android:textColor="#6B7280"
                 android:textSize="12sp"
                 android:paddingBottom="10dp" />
@@ -140,7 +140,7 @@
             <TextView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:text="模式选择"
+                android:text="@string/label_mode_selection"
                 android:textStyle="bold"
                 android:textSize="14sp"
                 android:paddingTop="4dp"
@@ -155,21 +155,21 @@
                     android:id="@+id/rbBothPoles"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:text="所有极性（只看磁场强度）"
+                    android:text="@string/label_all_modes"
                     android:checked="true" />
 
                 <RadioButton
                     android:id="@+id/rbDifferent"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:text="区分极性（单独配置 N / S）" />
+                    android:text="@string/label_split_modes" />
             </RadioGroup>
 
             <CheckBox
                 android:id="@+id/cbUsePolarity"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:text="启用极性判定（无法稳定判定时自动降级）"
+                android:text="@string/label_polarity_toggle"
                 android:paddingTop="6dp"
                 android:paddingBottom="6dp" />
 
@@ -184,22 +184,22 @@
                 <TextView
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:text="不分极性动作"
+                    android:text="@string/label_all_poles"
                     android:textStyle="bold"
                     android:textSize="14sp" />
 
                 <TextView
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:text="仅看磁场强度触发"
                     android:textColor="#6B7280"
                     android:textSize="12sp"
-                    android:paddingBottom="6dp" />
+                    android:paddingBottom="6dp"
+                    android:text="@string/pole_all_label" />
 
                 <TextView
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:text="短按动作"
+                    android:text="@string/label_short_press"
                     android:textStyle="bold"
                     android:textSize="14sp" />
 
@@ -212,7 +212,7 @@
                 <TextView
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:text="长按动作"
+                    android:text="@string/label_long_press"
                     android:textStyle="bold"
                     android:textSize="14sp"
                     android:paddingTop="8dp" />
@@ -236,22 +236,22 @@
                 <TextView
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:text="区分 N / S"
+                    android:text="@string/label_split_modes"
                     android:textStyle="bold"
                     android:textSize="14sp" />
 
                 <TextView
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:text="保留原极性识别逻辑，适合双侧磁铁"
                     android:textColor="#6B7280"
                     android:textSize="12sp"
-                    android:paddingBottom="6dp" />
+                    android:paddingBottom="6dp"
+                    android:text="@string/label_mode_selection" />
 
                 <TextView
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:text="N 极短按"
+                    android:text="@string/label_n_short"
                     android:textStyle="bold"
                     android:textSize="14sp" />
 
@@ -264,7 +264,7 @@
                 <TextView
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:text="N 极长按"
+                    android:text="@string/label_n_long"
                     android:textStyle="bold"
                     android:textSize="14sp"
                     android:paddingTop="8dp" />
@@ -278,7 +278,7 @@
                 <TextView
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:text="S 极短按"
+                    android:text="@string/label_s_short"
                     android:textStyle="bold"
                     android:textSize="14sp"
                     android:paddingTop="8dp" />
@@ -292,7 +292,7 @@
                 <TextView
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:text="S 极长按"
+                    android:text="@string/label_s_long"
                     android:textStyle="bold"
                     android:textSize="14sp"
                     android:paddingTop="8dp" />
@@ -370,7 +370,7 @@
             <TextView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:text="自动归零"
+                android:text="@string/title_auto_zero"
                 android:textStyle="bold"
                 android:textSize="16sp"
                 android:textColor="#111827" />
@@ -378,7 +378,7 @@
             <TextView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:text="两条规则并行：① 场强持续低于阈值；② 场强波动长期落在指定幅度内。满足任一即归零。"
+                android:text="@string/desc_auto_zero"
                 android:textColor="#6B7280"
                 android:textSize="12sp"
                 android:paddingBottom="10dp" />
@@ -386,7 +386,7 @@
             <TextView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:text="低磁场阈值 (μT)"
+                android:text="@string/label_low_field_threshold"
                 android:textColor="#374151"
                 android:textSize="14sp" />
 
@@ -395,13 +395,13 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:inputType="numberDecimal"
-                android:hint="例如 80"
+                android:hint="@string/hint_auto_zero_threshold"
                 android:layout_marginBottom="8dp" />
 
             <TextView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:text="低磁场维持时间 (秒)"
+                android:text="@string/label_low_field_duration"
                 android:textColor="#374151"
                 android:textSize="14sp" />
 
@@ -410,13 +410,13 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:inputType="numberDecimal"
-                android:hint="例如 4.0"
+                android:hint="@string/hint_auto_zero_seconds"
                 android:layout_marginBottom="8dp" />
 
             <TextView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:text="稳定波动维持时间 (秒)"
+                android:text="@string/label_stable_duration"
                 android:textColor="#374151"
                 android:textSize="14sp" />
 
@@ -425,13 +425,13 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:inputType="numberDecimal"
-                android:hint="例如 4.0"
+                android:hint="@string/hint_auto_zero_stable_seconds"
                 android:layout_marginBottom="8dp" />
 
             <TextView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:text="稳定波动幅度 (±μT)"
+                android:text="@string/label_stable_band"
                 android:textColor="#374151"
                 android:textSize="14sp" />
 
@@ -440,7 +440,7 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:inputType="numberDecimal"
-                android:hint="例如 20.0" />
+                android:hint="@string/hint_auto_zero_band" />
         </LinearLayout>
 
         <!-- 节能与采样 -->
@@ -455,7 +455,7 @@
             <TextView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:text="节能与采样"
+                android:text="@string/title_energy_sampling"
                 android:textStyle="bold"
                 android:textSize="16sp"
                 android:textColor="#111827" />
@@ -463,7 +463,7 @@
             <TextView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:text="低场时降低采样频率，节能同时保留灵敏度。单位：μT / ms / Hz"
+                android:text="@string/desc_energy_sampling"
                 android:textColor="#6B7280"
                 android:textSize="12sp"
                 android:paddingBottom="10dp" />
@@ -471,7 +471,7 @@
             <TextView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:text="节能阈值 (μT)"
+                android:text="@string/label_energy_threshold"
                 android:textColor="#374151"
                 android:textSize="14sp" />
 
@@ -480,13 +480,13 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:inputType="numberDecimal"
-                android:hint="例如 100"
+                android:hint="@string/hint_energy_threshold"
                 android:layout_marginBottom="8dp" />
 
             <TextView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:text="降采样延时 (ms)"
+                android:text="@string/label_energy_hold"
                 android:textColor="#374151"
                 android:textSize="14sp" />
 
@@ -495,13 +495,13 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:inputType="number"
-                android:hint="例如 2000"
+                android:hint="@string/hint_energy_hold"
                 android:layout_marginBottom="8dp" />
 
             <TextView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:text="高采样频率 (Hz)"
+                android:text="@string/label_sampling_high"
                 android:textColor="#374151"
                 android:textSize="14sp" />
 
@@ -510,13 +510,13 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:inputType="numberDecimal"
-                android:hint="例如 50"
+                android:hint="@string/hint_sampling_high"
                 android:layout_marginBottom="8dp" />
 
             <TextView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:text="低采样频率 (Hz)"
+                android:text="@string/label_sampling_low"
                 android:textColor="#374151"
                 android:textSize="14sp" />
 
@@ -525,10 +525,10 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:inputType="numberDecimal"
-                android:hint="例如 15" />
+                android:hint="@string/hint_sampling_low" />
         </LinearLayout>
 
-        <!-- 强磁保护 -->
+        <!-- 强磁贴合保护 -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
@@ -540,7 +540,7 @@
             <TextView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:text="强磁贴合保护"
+                android:text="@string/title_strong_suppression"
                 android:textStyle="bold"
                 android:textSize="16sp"
                 android:textColor="#111827" />
@@ -548,7 +548,7 @@
             <TextView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:text="强磁长时间贴合且波动极低时，忽略当前触发并用 3 声提示失败。单位：μT / ms"
+                android:text="@string/desc_strong_suppression"
                 android:textColor="#6B7280"
                 android:textSize="12sp"
                 android:paddingBottom="10dp" />
@@ -556,7 +556,7 @@
             <TextView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:text="判定阈值 (μT)"
+                android:text="@string/label_strong_threshold"
                 android:textColor="#374151"
                 android:textSize="14sp" />
 
@@ -565,13 +565,13 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:inputType="numberDecimal"
-                android:hint="例如 1800"
+                android:hint="@string/hint_strong_suppression_threshold"
                 android:layout_marginBottom="8dp" />
 
             <TextView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:text="持续时间 (ms)"
+                android:text="@string/label_duration_ms"
                 android:textColor="#374151"
                 android:textSize="14sp" />
 
@@ -580,13 +580,13 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:inputType="number"
-                android:hint="例如 400"
+                android:hint="@string/hint_strong_suppression_duration"
                 android:layout_marginBottom="8dp" />
 
             <TextView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:text="最大抖动 (μT)"
+                android:text="@string/label_max_jitter"
                 android:textColor="#374151"
                 android:textSize="14sp" />
 
@@ -595,7 +595,7 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:inputType="numberDecimal"
-                android:hint="例如 40" />
+                android:hint="@string/hint_strong_suppression_jitter" />
         </LinearLayout>
 
         <!-- 蓝牙白名单 -->
@@ -622,6 +622,23 @@
                 android:textColor="#6B7280"
                 android:textSize="12sp"
                 android:paddingBottom="10dp" />
+
+            <androidx.appcompat.widget.SwitchCompat
+                android:id="@+id/switchAllowAllOutputs"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="@string/bt_allow_all_outputs"
+                android:textColor="#111827"
+                android:paddingTop="4dp"
+                android:paddingBottom="4dp" />
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="@string/bt_allow_all_outputs_desc"
+                android:textColor="#6B7280"
+                android:textSize="12sp"
+                android:paddingBottom="8dp" />
 
             <TextView
                 android:id="@+id/tvBtSelected"
@@ -655,7 +672,7 @@
                 android:id="@+id/btnSave"
                 android:layout_width="match_parent"
                 android:layout_height="48dp"
-                android:text="保存设置"
+                android:text="@string/btn_save_settings"
                 android:textAllCaps="false"
                 android:background="@drawable/bg_button_flat"
                 android:textColor="#0B1224" />

@@ -2,6 +2,7 @@ package com.example.magnetcontroller
 
 import android.content.Context
 import android.content.SharedPreferences
+import org.json.JSONArray
 
 class AppPreferences(context: Context) {
     private val prefs: SharedPreferences = context.getSharedPreferences("MagnetSettings", Context.MODE_PRIVATE)
@@ -67,6 +68,10 @@ class AppPreferences(context: Context) {
         get() = prefs.getLong("auto_zero_stability_duration_ms", 4000L)
         set(value) = prefs.edit().putLong("auto_zero_stability_duration_ms", value).apply()
 
+    var strongLockHoldMs: Long
+        get() = prefs.getLong("strong_lock_hold_ms", 600L)
+        set(value) = prefs.edit().putLong("strong_lock_hold_ms", value).apply()
+
     var strongSuppressionThreshold: Float
         get() = prefs.getFloat("strong_suppression_threshold", 1800f)
         set(value) = prefs.edit().putFloat("strong_suppression_threshold", value).apply()
@@ -120,12 +125,30 @@ class AppPreferences(context: Context) {
         set(value) = prefs.edit().putBoolean("enable_feedback_vibration", value).apply()
 
     var recentLogs: List<String>
-        get() = prefs.getStringSet("recent_logs", emptySet())?.sortedBy { it.take(14) } ?: emptyList()
-        set(value) = prefs.edit().putStringSet("recent_logs", value.toSet()).apply()
+        get() {
+            val raw = prefs.getString("recent_logs_json", "[]") ?: "[]"
+            return runCatching {
+                val arr = JSONArray(raw)
+                buildList {
+                    for (i in 0 until arr.length()) {
+                        add(arr.getString(i))
+                    }
+                }
+            }.getOrElse { emptyList() }
+        }
+        set(value) {
+            val arr = JSONArray()
+            value.forEach { arr.put(it) }
+            prefs.edit().putString("recent_logs_json", arr.toString()).apply()
+        }
 
     var usePolarity: Boolean
         get() = prefs.getBoolean("use_polarity", false)
         set(value) = prefs.edit().putBoolean("use_polarity", value).apply()
+
+    var allowAllOutputs: Boolean
+        get() = prefs.getBoolean("allow_all_outputs", false)
+        set(value) = prefs.edit().putBoolean("allow_all_outputs", value).apply()
 
     private fun getAction(key: String, default: String): String {
         val raw = prefs.getString(key, default) ?: default

@@ -21,7 +21,6 @@ import android.os.Build
 import android.os.Handler
 import android.os.IBinder
 import android.os.Looper
-import android.os.PowerManager
 import android.os.VibrationEffect
 import android.os.Vibrator
 import android.os.VibratorManager
@@ -36,7 +35,21 @@ class MagnetService : Service(), SensorEventListener {
     companion object {
         const val ACTION_TRIGGER_VOICE = "com.example.magnetcontroller.TRIGGER_VOICE"
         const val ACTION_ZERO_SENSOR = "com.example.magnetcontroller.ZERO_SENSOR"
+
+        private const val CHANNEL_ID = "MagnetServiceChannel"
+        private const val TAG = "MagnetService"
+        private const val MAX_RECENT_LOGS = 100
+        private const val ACTION_COOLDOWN_MS = 900L
+        private const val NOISE_SAMPLE_LIMIT = 20_000
+        private const val FILTER_WINDOW_SIZE = 5
+        private const val NOISE_MULTIPLIER = 3.0f
+        private const val SOUND_RELEASE_DELAY_MS = 60_000L
+        private val LONG_PRESS_PATTERN = longArrayOf(0, 200, 100, 200)
     }
+
+    private enum class LogCategory { ROUTE, ACTION, STATUS, ERROR }
+
+    private data class PolaritySample(val timestamp: Long, val x: Float, val z: Float)
 
     private enum class State { IDLE, TIMING, COOLDOWN }
 
@@ -57,10 +70,9 @@ class MagnetService : Service(), SensorEventListener {
     private var isLongPressTriggered = false
     private var activePole: String = "none"
     private var lastActionTime = 0L
-    private var wakeLock: PowerManager.WakeLock? = null
     private var isScreenOn = true
 
-    private val actionCooldownMs = 900L
+    private val actionCooldownMs = ACTION_COOLDOWN_MS
     private var longPressThresholdMs = 1500L
     private var strongSuppressionThreshold = 1800f
     private var strongSuppressionDurationMs = 400L
@@ -72,9 +84,12 @@ class MagnetService : Service(), SensorEventListener {
 
     private var thresholdTrigger = 500f
     private var thresholdReset = 300f
+    private var thresholdResetDebounceMs = 80L
 
     private var usePolarity = false
     private var polarityWindowMs = 80
+    private var polarityMin = 50f
+    private var polarityMax = 2000f
     private var strongLockHoldMs = 600L
     private var strongLockUntil = 0L
 
@@ -97,6 +112,7 @@ class MagnetService : Service(), SensorEventListener {
     private var autoZeroLatched = false
 
     private var allowedBtDevices: Set<String> = emptySet()
+    private var allowAllOutputs: Boolean = false
     private var lastRouteLog: String? = null
     private var lastAudioRouteAllowed = false
     private var enableSoundFeedback = true
@@ -106,27 +122,22 @@ class MagnetService : Service(), SensorEventListener {
     private var soundPool: SoundPool? = null
     private val soundIds = mutableMapOf<String, Int>()
     private val soundReleaseHandler = Handler(Looper.getMainLooper())
-    private val soundReleaseDelayMs = 60_000L
     private val soundReleaseRunnable = Runnable { releaseSoundEffects() }
-    private val longPressPattern = longArrayOf(0, 200, 100, 200)
-    private val CHANNEL_ID = "MagnetServiceChannel"
-    private val TAG = "MagnetService"
 
     private val magWindow = ArrayDeque<Float>()
     private var noiseMean = 0f
     private var noiseM2 = 0f
     private var noiseSamples = 0
-    private val filterWindowSize = 5
-    private val noiseMultiplier = 3.0f
 
     private val recentLogs = ArrayDeque<String>()
-    private val maxRecentLogs = 100
+    private val polaritySamples = ArrayDeque<PolaritySample>()
+    private var resetBelowSince = 0L
 
     private val settingsReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
             if (intent?.action == "com.example.magnetcontroller.RELOAD_SETTINGS") {
                 loadSettings()
-                logToUI("设置已重新加载")
+                logToUI(getString(R.string.log_settings_reloaded), LogCategory.STATUS)
             }
         }
     }
@@ -183,7 +194,12 @@ class MagnetService : Service(), SensorEventListener {
         strongSuppressionThreshold = prefs.strongSuppressionThreshold
         strongSuppressionDurationMs = prefs.strongSuppressionDurationMs
         strongSuppressionJitter = prefs.strongSuppressionJitter
+        thresholdResetDebounceMs = prefs.thresholdResetDebounceMs
+        polarityMin = prefs.polarityMin
+        polarityMax = prefs.polarityMax
+        strongLockHoldMs = prefs.strongLockHoldMs
         allowedBtDevices = prefs.allowedBtDevices
+        allowAllOutputs = prefs.allowAllOutputs
         enableSoundFeedback = prefs.enableFeedbackSound
         enableVoiceFeedback = prefs.enableFeedbackVoice
         enableVibrationFeedback = prefs.enableFeedbackVibration
@@ -191,6 +207,9 @@ class MagnetService : Service(), SensorEventListener {
             stopVibration()
         }
 
+        recentLogs.clear()
+        recentLogs.addAll(prefs.recentLogs.takeLast(MAX_RECENT_LOGS))
+        polaritySamples.clear()
         belowEnergySince = 0L
         autoZeroSince = 0L
         autoZeroStableStart = 0L
@@ -202,6 +221,7 @@ class MagnetService : Service(), SensorEventListener {
         strongSuppressionMin = 0f
         strongSuppressionMax = 0f
         strongLockUntil = 0L
+        resetBelowSince = 0L
         magWindow.clear()
         noiseMean = 0f
         noiseM2 = 0f
@@ -212,16 +232,15 @@ class MagnetService : Service(), SensorEventListener {
         if (magnetometer != null) {
             applySamplingDelay(samplingHighDelayUs)
         }
+        syncRecentLogsToUi()
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         when (intent?.action) {
             ACTION_TRIGGER_VOICE -> {
-                val routeOk = isAudioRouteAllowed(System.currentTimeMillis())
-                triggerVoiceAssistant(
-                    alreadyPlayedSound = false,
-                    feedbackAllowed = routeOk && enableVoiceFeedback
-                )
+                val routeOk = isAudioRouteAllowed()
+                playActionFeedback("voice", routeOk && enableVoiceFeedback)
+                triggerVoiceAssistant()
                 return START_STICKY
             }
             ACTION_ZERO_SENSOR -> {
@@ -234,8 +253,8 @@ class MagnetService : Service(), SensorEventListener {
         val pendingIntent = PendingIntent.getActivity(this, 0, notificationIntent, PendingIntent.FLAG_IMMUTABLE)
 
         val notification: Notification = NotificationCompat.Builder(this, CHANNEL_ID)
-            .setContentTitle("磁控助手后台运行")
-            .setContentText("保持后台以便磁控响应")
+            .setContentTitle(getString(R.string.notification_running))
+            .setContentText(getString(R.string.notification_listening))
             .setSmallIcon(R.drawable.ic_magnet)
             .setContentIntent(pendingIntent)
             .setPriority(NotificationCompat.PRIORITY_MIN)
@@ -251,7 +270,7 @@ class MagnetService : Service(), SensorEventListener {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val serviceChannel = NotificationChannel(
                 CHANNEL_ID,
-                "磁控助手前台",
+                getString(R.string.notification_channel_name),
                 NotificationManager.IMPORTANCE_MIN
             ).apply {
                 setSound(null, null)
@@ -267,13 +286,13 @@ class MagnetService : Service(), SensorEventListener {
         sensorManager = getSystemService(Context.SENSOR_SERVICE) as SensorManager
         magnetometer = sensorManager.getDefaultSensor(Sensor.TYPE_MAGNETIC_FIELD_UNCALIBRATED)
             ?: sensorManager.getDefaultSensor(Sensor.TYPE_MAGNETIC_FIELD).also {
-                logToUI("未找到未校准磁力计，退回已校准传感器")
+                logToUI(getString(R.string.log_fallback_calibrated_sensor), LogCategory.STATUS)
             }
         magnetometer?.let {
             sensorManager.registerListener(this, it, samplingHighDelayUs, samplingHighDelayUs)
             currentDelayUs = samplingHighDelayUs
         } ?: run {
-            logToUI("无法注册磁力计监听")
+            logToUI(getString(R.string.log_register_sensor_failed), LogCategory.ERROR)
             stopSelf()
         }
     }
@@ -330,7 +349,7 @@ class MagnetService : Service(), SensorEventListener {
 
         if (pendingInitialZero) {
             pendingInitialZero = false
-            resetBaseline("启动自动归零")
+            resetBaseline()
         }
 
         val x = lastRawX - zeroOffsetX
@@ -342,13 +361,14 @@ class MagnetService : Service(), SensorEventListener {
         updateSamplingRate(magSq, now)
         handleAutoZero(magnitude, now)
 
-        val poleForUi = if (usePolarity) classifyPole(x, z) else "all"
+        updatePolaritySamples(now, x, z, magnitude)
+        val poleForUi = determineActivePole(now)
         sendBroadcastToUI(x, y, z, magnitude, poleForUi)
 
         processLogic(magnitude, now)
     }
 
-    private fun resetBaseline(logMessage: String = "已重置零点") {
+    private fun resetBaseline(reason: String? = null) {
         zeroOffsetX = lastRawX
         zeroOffsetY = lastRawY
         zeroOffsetZ = lastRawZ
@@ -368,9 +388,18 @@ class MagnetService : Service(), SensorEventListener {
         strongSuppressionMin = 0f
         strongSuppressionMax = 0f
         strongLockUntil = 0L
+        polaritySamples.clear()
+        resetBelowSince = 0L
         stopVibration()
 
-        logToUI("$logMessage (X=${zeroOffsetX.roundToInt()}, Y=${zeroOffsetY.roundToInt()}, Z=${zeroOffsetZ.roundToInt()})")
+        val baseMessage = getString(
+            R.string.log_reset_baseline,
+            zeroOffsetX.roundToInt(),
+            zeroOffsetY.roundToInt(),
+            zeroOffsetZ.roundToInt()
+        )
+        val finalMessage = if (reason.isNullOrBlank()) baseMessage else "$reason $baseMessage"
+        logToUI(finalMessage, LogCategory.STATUS)
     }
 
     private fun handleAutoZero(magnitude: Float, now: Long) {
@@ -392,7 +421,11 @@ class MagnetService : Service(), SensorEventListener {
             if (magnitude < autoZeroThreshold) {
                 if (autoZeroSince == 0L) autoZeroSince = now
                 if (now - autoZeroSince >= autoZeroDurationMs) {
-                    zeroReason = "场强低于 ${autoZeroThreshold.roundToInt()} μT 持续 ${"%.1f".format(autoZeroDurationMs / 1000f)} 秒"
+                    zeroReason = getString(
+                        R.string.log_auto_zero_low,
+                        autoZeroThreshold.roundToInt(),
+                        autoZeroDurationMs / 1000f
+                    )
                 }
             } else {
                 autoZeroSince = 0L
@@ -412,7 +445,11 @@ class MagnetService : Service(), SensorEventListener {
             val withinBand = autoZeroStableMax - autoZeroStableMin <= autoZeroStabilityBand
             if (withinBand) {
                 if (zeroReason == null && now - autoZeroStableStart >= autoZeroStabilityDurationMs) {
-                    zeroReason = "场强波动 ≤ ${autoZeroStabilityBand.roundToInt()} μT 持续 ${"%.1f".format(autoZeroStabilityDurationMs / 1000f)} 秒"
+                    zeroReason = getString(
+                        R.string.log_auto_zero_stable,
+                        autoZeroStabilityBand.roundToInt(),
+                        autoZeroStabilityDurationMs / 1000f
+                    )
                 }
             } else {
                 autoZeroStableStart = now
@@ -426,7 +463,7 @@ class MagnetService : Service(), SensorEventListener {
         }
 
         if (zeroReason != null) {
-            resetBaseline("因 $zeroReason，自动归零")
+            resetBaseline(zeroReason)
             autoZeroLatched = true
             autoZeroSince = 0L
             autoZeroStableStart = 0L
@@ -452,7 +489,8 @@ class MagnetService : Service(), SensorEventListener {
                     strongSuppressionLatched = true
                     cancelActiveTrigger()
                     lastActionTime = now
-                    logToUI("磁场过强且稳定，已忽略本次触发")
+                    strongLockUntil = now + strongLockHoldMs
+                    logToUI(getString(R.string.log_strong_suppression), LogCategory.STATUS)
                     if (soundAllowed) {
                         playPressFailureChime()
                     }
@@ -472,9 +510,9 @@ class MagnetService : Service(), SensorEventListener {
     }
 
     private fun processLogic(magnitude: Float, now: Long) {
-        val routeAllowed = isAudioRouteAllowed(now)
+        val routeAllowed = isAudioRouteAllowed()
         val promptSoundAllowed = routeAllowed && enableSoundFeedback
-        val actionVoiceAllowed = routeAllowed && enableVoiceFeedback
+        val assistantFeedbackAllowed = routeAllowed && enableVoiceFeedback
         val vibrationAllowed = routeAllowed && enableVibrationFeedback
         val filteredMag = filterMagnitude(magnitude)
 
@@ -482,72 +520,144 @@ class MagnetService : Service(), SensorEventListener {
             stopVibration()
         }
 
-        if (handleStrongSuppression(filteredMag, now, promptSoundAllowed)) return
+        if (now < strongLockUntil) {
+            return
+        }
 
-        val adaptiveTrigger = max(thresholdTrigger, noiseMean + noiseMultiplier * getNoiseStd())
-        val adaptiveReset = max(thresholdReset, adaptiveTrigger * 0.6f)
+        if (handleStrongSuppression(filteredMag, now, promptSoundAllowed)) {
+            strongLockUntil = now + strongLockHoldMs
+            return
+        }
+
+        val (adaptiveTrigger, adaptiveReset) = computeAdaptiveThresholds()
 
         when (state) {
-            State.IDLE -> {
-                if (filteredMag > adaptiveTrigger && now - lastActionTime >= actionCooldownMs) {
-                    state = State.TIMING
-                    triggerStartTime = now
-                    isLongPressTriggered = false
-                    if (vibrationAllowed) {
-                        startContinuousVibration()
-                    }
-                    if (promptSoundAllowed) {
-                        playPressSound()
-                    }
-                    activePole = if (usePolarity) samplePoleDuringWindow(now) else "all"
-                }
-            }
-            State.TIMING -> {
-                if (filteredMag < adaptiveReset) {
-                    stopVibration()
-                    if (!isLongPressTriggered) {
-                        val poleForAction = if (usePolarity) activePole else "all"
-                        if (!usePolarity || poleForAction == "N" || poleForAction == "S" || poleForAction == "all") {
-                            val action = selectActionForPole(poleForAction, false)
-                            performAction(action, routeAllowed, actionVoiceAllowed)
-                        }
-                    }
-                    state = State.COOLDOWN
-                    lastActionTime = now
-                } else if (!isLongPressTriggered && now - triggerStartTime >= longPressThresholdMs) {
-                    stopVibration()
-                    if (vibrationAllowed) {
-                        playDoubleBeep()
-                    }
-                    val poleForAction = if (usePolarity) activePole else "all"
-                    if (!usePolarity || poleForAction == "N" || poleForAction == "S" || poleForAction == "all") {
-                        val action = selectActionForPole(poleForAction, true)
-                        performAction(action, routeAllowed, actionVoiceAllowed)
-                        isLongPressTriggered = true
-                        state = State.COOLDOWN
-                        lastActionTime = now
-                    }
-                }
-            }
+            State.IDLE -> tryStartTrigger(filteredMag, adaptiveTrigger, now, vibrationAllowed, promptSoundAllowed)
+            State.TIMING -> handleTimingState(
+                filteredMag,
+                adaptiveReset,
+                now,
+                routeAllowed,
+                promptSoundAllowed,
+                assistantFeedbackAllowed,
+                vibrationAllowed
+            )
             State.COOLDOWN -> {
                 if (now - lastActionTime >= actionCooldownMs) {
                     state = State.IDLE
+                    resetBelowSince = 0L
                 }
             }
         }
     }
 
-    private fun samplePoleDuringWindow(now: Long): String {
-        val sampleEnd = now + polarityWindowMs
-        val samples = mutableListOf<Pair<Float, Float>>()
-        samples.add(lastRawX - zeroOffsetX to lastRawZ - zeroOffsetZ)
-        while (System.currentTimeMillis() < sampleEnd) {
-            samples.add(lastRawX - zeroOffsetX to lastRawZ - zeroOffsetZ)
-            Thread.sleep(5)
+    private fun computeAdaptiveThresholds(): Pair<Float, Float> {
+        val trigger = max(thresholdTrigger, noiseMean + NOISE_MULTIPLIER * getNoiseStd())
+        val reset = max(thresholdReset, trigger * 0.6f)
+        return trigger to reset
+    }
+
+    private fun tryStartTrigger(
+        filteredMag: Float,
+        adaptiveTrigger: Float,
+        now: Long,
+        vibrationAllowed: Boolean,
+        promptSoundAllowed: Boolean
+    ) {
+        if (filteredMag > adaptiveTrigger && now - lastActionTime >= actionCooldownMs) {
+            state = State.TIMING
+            triggerStartTime = now
+            isLongPressTriggered = false
+            resetBelowSince = 0L
+            if (vibrationAllowed) {
+                startContinuousVibration()
+            }
+            if (promptSoundAllowed) {
+                playPressSound()
+            }
+            activePole = determineActivePole(now)
         }
-        val avgX = samples.map { it.first }.average().toFloat()
-        val avgZ = samples.map { it.second }.average().toFloat()
+    }
+
+    private fun handleTimingState(
+        filteredMag: Float,
+        adaptiveReset: Float,
+        now: Long,
+        routeAllowed: Boolean,
+        promptSoundAllowed: Boolean,
+        assistantFeedbackAllowed: Boolean,
+        vibrationAllowed: Boolean
+    ) {
+        if (filteredMag < adaptiveReset) {
+            if (resetBelowSince == 0L) resetBelowSince = now
+            val debounceReached = now - resetBelowSince >= thresholdResetDebounceMs
+            if (debounceReached) {
+                stopVibration()
+                if (!isLongPressTriggered) {
+                    triggerConfiguredAction(
+                        longPress = false,
+                        routeAllowed = routeAllowed,
+                        assistantAllowed = assistantFeedbackAllowed
+                    )
+                }
+                state = State.COOLDOWN
+                lastActionTime = now
+                resetBelowSince = 0L
+            }
+        } else {
+            resetBelowSince = 0L
+            if (!isLongPressTriggered && now - triggerStartTime >= longPressThresholdMs) {
+                stopVibration()
+                if (vibrationAllowed) {
+                    playDoubleBeep()
+                }
+                triggerConfiguredAction(
+                    longPress = true,
+                    routeAllowed = routeAllowed,
+                    assistantAllowed = assistantFeedbackAllowed
+                )
+                isLongPressTriggered = true
+                state = State.COOLDOWN
+                lastActionTime = now
+            }
+        }
+    }
+
+    private fun triggerConfiguredAction(
+        longPress: Boolean,
+        routeAllowed: Boolean,
+        assistantAllowed: Boolean
+    ) {
+        val poleForAction = if (usePolarity) activePole else "all"
+        if (!usePolarity || poleForAction == "N" || poleForAction == "S" || poleForAction == "all") {
+            val action = selectActionForPole(poleForAction, longPress)
+            performAction(action, routeAllowed, assistantAllowed)
+        }
+    }
+
+    private fun determineActivePole(now: Long): String {
+        if (!usePolarity) return "all"
+        val cutoff = now - polarityWindowMs
+        while (polaritySamples.isNotEmpty() && polaritySamples.first().timestamp < cutoff) {
+            polaritySamples.removeFirst()
+        }
+        if (polaritySamples.isEmpty()) return "all"
+        val avgX = polaritySamples.map { it.x }.average().toFloat()
+        val avgZ = polaritySamples.map { it.z }.average().toFloat()
         return classifyPole(avgX, avgZ)
+    }
+
+    private fun updatePolaritySamples(now: Long, x: Float, z: Float, magnitude: Float) {
+        if (!usePolarity) {
+            polaritySamples.clear()
+            return
+        }
+        if (magnitude < polarityMin || magnitude > polarityMax) return
+        polaritySamples.addLast(PolaritySample(now, x, z))
+        val cutoff = now - polarityWindowMs
+        while (polaritySamples.isNotEmpty() && polaritySamples.first().timestamp < cutoff) {
+            polaritySamples.removeFirst()
+        }
     }
 
     private fun classifyPole(x: Float, z: Float): String {
@@ -556,7 +666,7 @@ class MagnetService : Service(), SensorEventListener {
 
     private fun filterMagnitude(rawMag: Float): Float {
         magWindow.addLast(rawMag)
-        if (magWindow.size > filterWindowSize) {
+        if (magWindow.size > FILTER_WINDOW_SIZE) {
             magWindow.removeFirst()
         }
         return magWindow.average().toFloat()
@@ -569,7 +679,7 @@ class MagnetService : Service(), SensorEventListener {
         val delta = mag - noiseMean
         noiseMean += delta / noiseSamples
         noiseM2 += delta * (mag - noiseMean)
-        if (noiseSamples > 20000) {
+        if (noiseSamples > NOISE_SAMPLE_LIMIT) {
             noiseSamples /= 2
             noiseM2 /= 2
         }
@@ -587,28 +697,20 @@ class MagnetService : Service(), SensorEventListener {
         stopVibration()
     }
 
-    private fun performAction(action: String, allowed: Boolean, voiceAllowed: Boolean) {
-        val label = when (action) {
-            "voice" -> "语音助手"
-            "next" -> "下一曲"
-            "previous" -> "上一曲"
-            "volume_up" -> "音量+"
-            "volume_down" -> "音量-"
-            "play_pause", "media" -> "播放/暂停"
-            else -> "播放/暂停"
-        }
+    private fun performAction(action: String, routeAllowed: Boolean, assistantAllowed: Boolean) {
+        val label = actionLabel(action)
 
-        if (!allowed) {
+        if (!routeAllowed) {
             logAction(label, false)
             return
         }
 
         logAction(label, true)
-        if (voiceAllowed) {
-            playActionVoice(action)
+        if (assistantAllowed) {
+            playActionFeedback(action, true)
         }
         when (action) {
-            "voice" -> triggerVoiceAssistant(alreadyPlayedSound = voiceAllowed, feedbackAllowed = allowed && voiceAllowed)
+            "voice" -> triggerVoiceAssistant()
             "next" -> triggerMediaKey(KeyEvent.KEYCODE_MEDIA_NEXT)
             "previous" -> triggerMediaKey(KeyEvent.KEYCODE_MEDIA_PREVIOUS)
             "volume_up" -> adjustVolume(AudioManager.ADJUST_RAISE)
@@ -618,9 +720,25 @@ class MagnetService : Service(), SensorEventListener {
         }
     }
 
+    private fun actionLabel(action: String): String {
+        return when (action) {
+            "voice" -> getString(R.string.label_voice)
+            "next" -> getString(R.string.label_next)
+            "previous" -> getString(R.string.label_previous)
+            "volume_up" -> getString(R.string.label_volume_up)
+            "volume_down" -> getString(R.string.label_volume_down)
+            "play_pause", "media" -> getString(R.string.label_play_pause)
+            else -> getString(R.string.label_play_pause)
+        }
+    }
+
     private fun logAction(label: String, executed: Boolean) {
-        val suffix = if (executed) "[已执行]" else "[未执行]"
-        logToUI("动作 $label $suffix")
+        val message = if (executed) {
+            getString(R.string.log_action_executed, label)
+        } else {
+            getString(R.string.log_action_skipped, label)
+        }
+        logToUI(message, LogCategory.ACTION)
     }
 
     private fun selectActionForPole(pole: String, longPress: Boolean): String {
@@ -661,10 +779,10 @@ class MagnetService : Service(), SensorEventListener {
         val vibrator = getVibrator()
         if (vibrator.hasVibrator()) {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                vibrator.vibrate(VibrationEffect.createWaveform(longPressPattern, -1))
+                vibrator.vibrate(VibrationEffect.createWaveform(LONG_PRESS_PATTERN, -1))
             } else {
                 @Suppress("DEPRECATION")
-                vibrator.vibrate(longPressPattern, -1)
+                vibrator.vibrate(LONG_PRESS_PATTERN, -1)
             }
         }
     }
@@ -691,22 +809,8 @@ class MagnetService : Service(), SensorEventListener {
                 soundIds[name] = id
             }
         } catch (e: Exception) {
-            Log.w(TAG, "加载音效失败 $name: ${e.message}")
+            Log.w(TAG, getString(R.string.log_sound_load_failed, name, e.message.orEmpty()))
         }
-    }
-
-    private fun playActionVoice(action: String) {
-        if (!enableVoiceFeedback) return
-        val key = when (action) {
-            "play_pause", "media" -> "toggle"
-            "previous" -> "prev"
-            "next" -> "next"
-            "volume_up" -> "volup"
-            "volume_down" -> "voldown"
-            "voice" -> "assistant"
-            else -> null
-        }
-        playSound(key)
     }
 
     private fun playPressSound() {
@@ -739,23 +843,41 @@ class MagnetService : Service(), SensorEventListener {
 
     private fun scheduleSoundRelease() {
         soundReleaseHandler.removeCallbacks(soundReleaseRunnable)
-        soundReleaseHandler.postDelayed(soundReleaseRunnable, soundReleaseDelayMs)
+        soundReleaseHandler.postDelayed(soundReleaseRunnable, SOUND_RELEASE_DELAY_MS)
     }
 
-    private fun triggerVoiceAssistant(alreadyPlayedSound: Boolean = false, feedbackAllowed: Boolean = true) {
-        if (!alreadyPlayedSound && feedbackAllowed) {
-            playSound("assistant")
+    private fun playActionFeedback(action: String, feedbackAllowed: Boolean) {
+        if (!feedbackAllowed) return
+        val key = when (action) {
+            "play_pause", "media" -> "toggle"
+            "previous" -> "prev"
+            "next" -> "next"
+            "volume_up" -> "volup"
+            "volume_down" -> "voldown"
+            "voice" -> "assistant"
+            else -> null
         }
-        if (AccessibilityVoiceService.requestVoice(this)) {
-            logToUI("尝试通过无障碍触发语音助手...")
-            return
+        playSound(key)
+    }
+
+    private fun triggerVoiceAssistant() {
+        val baseFlags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+        val attempts = listOf(
+            Intent(Intent.ACTION_VOICE_COMMAND).apply { addFlags(baseFlags) },
+            Intent("android.intent.action.VOICE_ASSIST").apply { addFlags(baseFlags) },
+            Intent(Intent.ACTION_ASSIST).apply { addFlags(baseFlags) }
+        )
+        var launched = false
+        for (intent in attempts) {
+            try {
+                startActivity(intent)
+                launched = true
+                break
+            } catch (_: Exception) {
+            }
         }
-        acquireWakeLock(4000)
-        try {
-            logToUI("直接请求无障碍触发失败，申请唤醒锁后重试")
-            AccessibilityVoiceService.requestVoice(this)
-        } finally {
-            releaseWakeLock()
+        if (!launched) {
+            logToUI(getString(R.string.log_voice_launch_error), LogCategory.ERROR)
         }
     }
 
@@ -768,7 +890,7 @@ class MagnetService : Service(), SensorEventListener {
             audioManager.dispatchMediaKeyEvent(keyEventDown)
             audioManager.dispatchMediaKeyEvent(keyEventUp)
         } catch (e: Exception) {
-            logToUI("发送媒体键失败: ${e.message}")
+            logToUI(getString(R.string.log_media_key_error, e.message.orEmpty()), LogCategory.ERROR)
         }
     }
 
@@ -777,35 +899,11 @@ class MagnetService : Service(), SensorEventListener {
         try {
             audioManager.adjustStreamVolume(AudioManager.STREAM_MUSIC, direction, AudioManager.FLAG_SHOW_UI)
         } catch (e: Exception) {
-            logToUI("调整音量失败: ${e.message}")
+            logToUI(getString(R.string.log_volume_error, e.message.orEmpty()), LogCategory.ERROR)
         }
     }
 
-    private fun acquireWakeLock(durationMs: Long) {
-        try {
-            if (wakeLock?.isHeld == true) return
-            val pm = getSystemService(Context.POWER_SERVICE) as PowerManager
-            wakeLock = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "MagnetService:Voice").apply {
-                setReferenceCounted(false)
-                acquire(durationMs)
-            }
-        } catch (e: SecurityException) {
-            logToUI("申请 WAKE_LOCK 权限失败")
-        } catch (e: Exception) {
-            logToUI("申请唤醒锁失败: ${e.message}")
-        }
-    }
-
-    private fun releaseWakeLock() {
-        try {
-            wakeLock?.let {
-                if (it.isHeld) it.release()
-            }
-        } catch (_: Exception) {
-        }
-    }
-
-    private fun isAudioRouteAllowed(now: Long): Boolean {
+    private fun isAudioRouteAllowed(): Boolean {
         val audioManager = getSystemService(Context.AUDIO_SERVICE) as AudioManager
         val outputs = audioManager.getDevices(AudioManager.GET_DEVICES_OUTPUTS)
         val btTypes = setOf(
@@ -830,46 +928,55 @@ class MagnetService : Service(), SensorEventListener {
         val allowedAddrs = allowedBtDevices.filter { it.contains(":") }.map { it.uppercase() }.toSet()
         val allowedNames = allowedBtDevices.filter { it.startsWith("name::") }.map { it.removePrefix("name::").lowercase() }.toSet()
 
-        var reason: String? = null
+        val hasBtOutput = candidates.isNotEmpty()
+
         var routeMessage: String? = null
-        if (candidates.isEmpty()) {
-            reason = "当前未连接蓝牙音频设备/通道"
-            routeMessage = "⚠️ 当前未连接蓝牙音频设备，动作不执行"
-        } else if (allowedBtDevices.isNotEmpty()) {
-            val matched = candidates.any { (addrRaw, nameRaw) ->
-                val addr = addrRaw.uppercase()
-                val name = nameRaw.lowercase()
-                val addrOk = addr.isNotBlank() && allowedAddrs.contains(addr)
-                val nameOk = name.isNotBlank() && allowedNames.any { allow -> name.contains(allow) || allow.contains(name) }
-                addrOk || nameOk
+        val allowed = when {
+            allowAllOutputs -> {
+                routeMessage = getString(R.string.log_route_allow_all)
+                true
             }
-            if (!matched) {
-                val namesNotAllowed = candidates.map { it.second.ifBlank { it.first } }.filter { it.isNotBlank() }.distinct()
-                routeMessage = "⚠️ 当前连接设备 ${namesNotAllowed.joinToString(" / ").ifBlank { "未知设备" }} 不在白名单，动作不执行"
-                reason = "已连接设备不在白名单"
-            } else {
-                val namesAllowed = candidates.map { it.second.ifBlank { it.first } }.filter { it.isNotBlank() }.distinct()
-                routeMessage = if (namesAllowed.isNotEmpty()) {
-                    "✅ 已连接允许的设备: ${namesAllowed.joinToString(" / ")}"
+            !hasBtOutput -> {
+                routeMessage = getString(R.string.log_route_not_connected)
+                false
+            }
+            allowedBtDevices.isEmpty() -> {
+                val namesAny = candidates.map { it.second.ifBlank { it.first } }.filter { it.isNotBlank() }.distinct()
+                routeMessage = if (namesAny.isNotEmpty()) {
+                    getString(R.string.log_route_connected_generic, namesAny.joinToString(" / "))
                 } else {
-                    "✅ 已连接白名单设备"
+                    getString(R.string.log_route_connected_generic, getString(R.string.log_route_unknown_device))
                 }
+                true
             }
-        } else {
-            val namesAny = candidates.map { it.second.ifBlank { it.first } }.filter { it.isNotBlank() }.distinct()
-            routeMessage = if (namesAny.isNotEmpty()) {
-                "ℹ️ 已连接蓝牙音频：${namesAny.joinToString(" / ")}"
-            } else {
-                "ℹ️ 已连接蓝牙音频设备"
+            else -> {
+                val matched = candidates.any { (addrRaw, nameRaw) ->
+                    val addr = addrRaw.uppercase()
+                    val name = nameRaw.lowercase()
+                    val addrOk = addr.isNotBlank() && allowedAddrs.contains(addr)
+                    val nameOk = name.isNotBlank() && allowedNames.any { allow -> name.contains(allow) || allow.contains(name) }
+                    addrOk || nameOk
+                }
+                if (matched) {
+                    val namesAllowed = candidates.map { it.second.ifBlank { it.first } }.filter { it.isNotBlank() }.distinct()
+                    val display = if (namesAllowed.isNotEmpty()) namesAllowed.joinToString(" / ") else getString(R.string.log_route_unknown_device)
+                    routeMessage = getString(R.string.log_route_connected_allowed, display)
+                    true
+                } else {
+                    val namesNotAllowed = candidates.map { it.second.ifBlank { it.first } }.filter { it.isNotBlank() }.distinct()
+                    val display = namesNotAllowed.joinToString(" / ").ifBlank { getString(R.string.log_route_unknown_device) }
+                    routeMessage = getString(R.string.log_route_blocked, display)
+                    false
+                }
             }
         }
 
         if (routeMessage != lastRouteLog) {
             lastRouteLog = routeMessage
-            routeMessage?.let { logToUI(it) }
+            routeMessage?.let { logToUI(it, LogCategory.ROUTE) }
         }
 
-        lastAudioRouteAllowed = reason == null
+        lastAudioRouteAllowed = allowed
         return lastAudioRouteAllowed
     }
 
@@ -889,30 +996,43 @@ class MagnetService : Service(), SensorEventListener {
         sendBroadcast(intent)
     }
 
-    private fun logToUI(message: String) {
-        val intent = Intent("com.example.magnetcontroller.UPDATE_LOG")
-        intent.putExtra("log", message)
-        intent.setPackage(packageName)
+    private fun logToUI(message: String, category: LogCategory = LogCategory.STATUS) {
+        if (message.isBlank()) return
+        val payload = formatLog(message, category)
+        val intent = Intent("com.example.magnetcontroller.UPDATE_LOG").apply {
+            putExtra("log", payload)
+            putExtra("category", category.name)
+            setPackage(packageName)
+        }
         sendBroadcast(intent)
-        Log.d(TAG, message)
-        addRecentLog(message)
+        Log.d(TAG, payload)
+        addRecentLog(payload)
+    }
+
+    private fun formatLog(message: String, category: LogCategory): String {
+        val prefix = when (category) {
+            LogCategory.ROUTE -> "[ROUTE]"
+            LogCategory.ACTION -> "[ACTION]"
+            LogCategory.ERROR -> "[ERROR]"
+            LogCategory.STATUS -> "[STATUS]"
+        }
+        return "$prefix $message"
     }
 
     private fun getStatusText(): String {
         return when (state) {
-            State.IDLE -> "待机中..."
-            State.TIMING -> if (isLongPressTriggered) "长按触发中" else "按压计时中..."
-            State.COOLDOWN -> "冷却中..."
+            State.IDLE -> getString(R.string.status_idle)
+            State.TIMING -> if (isLongPressTriggered) getString(R.string.status_timing_long) else getString(R.string.status_timing)
+            State.COOLDOWN -> getString(R.string.status_cooldown_only)
         }
     }
 
     private fun addRecentLog(message: String) {
-        if (message.isBlank()) return
-        if (message.startsWith("⚠️") || message.startsWith("✅") || message.startsWith("ℹ️")) return
-        if (recentLogs.size >= maxRecentLogs) {
+        if (recentLogs.size >= MAX_RECENT_LOGS) {
             recentLogs.removeFirst()
         }
         recentLogs.addLast(message)
+        prefs.recentLogs = recentLogs.toList()
         syncRecentLogsToUi()
     }
 
