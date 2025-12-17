@@ -107,6 +107,18 @@ class AppPreferences(context: Context) {
         get() = prefs.getStringSet("allowed_bt_devices", emptySet())?.toSet() ?: emptySet()
         set(value) = prefs.edit().putStringSet("allowed_bt_devices", value.toSet()).apply()
 
+    var enableFeedbackSound: Boolean
+        get() = prefs.getBoolean("enable_feedback_sound", true)
+        set(value) = prefs.edit().putBoolean("enable_feedback_sound", value).apply()
+
+    var enableFeedbackVoice: Boolean
+        get() = prefs.getBoolean("enable_feedback_voice", false)
+        set(value) = prefs.edit().putBoolean("enable_feedback_voice", value).apply()
+
+    var enableFeedbackVibration: Boolean
+        get() = prefs.getBoolean("enable_feedback_vibration", true)
+        set(value) = prefs.edit().putBoolean("enable_feedback_vibration", value).apply()
+
     var recentLogs: List<String>
         get() = prefs.getStringSet("recent_logs", emptySet())?.sortedBy { it.take(14) } ?: emptyList()
         set(value) = prefs.edit().putStringSet("recent_logs", value.toSet()).apply()

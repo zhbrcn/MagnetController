@@ -25,9 +25,11 @@ import android.os.PowerManager
 import android.os.VibrationEffect
 import android.os.Vibrator
 import android.os.VibratorManager
+import android.speech.tts.TextToSpeech
 import android.util.Log
 import android.view.KeyEvent
 import androidx.core.app.NotificationCompat
+import java.util.Locale
 import kotlin.math.max
 import kotlin.math.roundToInt
 import kotlin.math.sqrt
@@ -98,6 +100,14 @@ class MagnetService : Service(), SensorEventListener {
 
     private var allowedBtDevices: Set<String> = emptySet()
     private var lastRouteLog: String? = null
+    private var lastAudioRouteAllowed = false
+    private var enableSoundFeedback = true
+    private var enableVoiceFeedback = false
+    private var enableVibrationFeedback = true
+
+    private var textToSpeech: TextToSpeech? = null
+    private var isTtsReady = false
+    private var pendingTtsText: String? = null
 
     private var soundPool: SoundPool? = null
     private val soundIds = mutableMapOf<String, Int>()
@@ -180,6 +190,16 @@ class MagnetService : Service(), SensorEventListener {
         strongSuppressionDurationMs = prefs.strongSuppressionDurationMs
         strongSuppressionJitter = prefs.strongSuppressionJitter
         allowedBtDevices = prefs.allowedBtDevices
+        enableSoundFeedback = prefs.enableFeedbackSound
+        enableVoiceFeedback = prefs.enableFeedbackVoice
+        enableVibrationFeedback = prefs.enableFeedbackVibration
+        if (!enableVoiceFeedback) {
+            shutdownTts()
+            pendingTtsText = null
+        }
+        if (!enableVibrationFeedback) {
+            stopVibration()
+        }
 
         belowEnergySince = 0L
         autoZeroSince = 0L
@@ -198,6 +218,7 @@ class MagnetService : Service(), SensorEventListener {
         noiseSamples = 0
         state = State.IDLE
         lastRouteLog = null
+        lastAudioRouteAllowed = false
         if (magnetometer != null) {
             applySamplingDelay(samplingHighDelayUs)
         }
@@ -206,7 +227,11 @@ class MagnetService : Service(), SensorEventListener {
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         when (intent?.action) {
             ACTION_TRIGGER_VOICE -> {
-                triggerVoiceAssistant()
+                val routeOk = isAudioRouteAllowed(System.currentTimeMillis())
+                triggerVoiceAssistant(
+                    alreadyPlayedSound = false,
+                    feedbackAllowed = routeOk && enableVoiceFeedback
+                )
                 return START_STICKY
             }
             ACTION_ZERO_SENSOR -> {
@@ -302,6 +327,7 @@ class MagnetService : Service(), SensorEventListener {
         unregisterReceiver(screenReceiver)
         stopVibration()
         releaseSoundEffects()
+        shutdownTts()
         syncRecentLogsToUi()
     }
 
@@ -418,7 +444,7 @@ class MagnetService : Service(), SensorEventListener {
         }
     }
 
-    private fun handleStrongSuppression(magnitude: Float, now: Long): Boolean {
+    private fun handleStrongSuppression(magnitude: Float, now: Long, soundAllowed: Boolean): Boolean {
         if (strongSuppressionThreshold <= 0f || strongSuppressionDurationMs <= 0L) return false
 
         if (magnitude > strongSuppressionThreshold) {
@@ -438,7 +464,9 @@ class MagnetService : Service(), SensorEventListener {
                     cancelActiveTrigger()
                     lastActionTime = now
                     logToUI("磁场过强且稳定，已忽略本次触发")
-                    playPressFailureChime()
+                    if (soundAllowed) {
+                        playPressFailureChime()
+                    }
                 }
                 return true
             }
@@ -456,9 +484,17 @@ class MagnetService : Service(), SensorEventListener {
 
     private fun processLogic(magnitude: Float, now: Long) {
         val routeAllowed = isAudioRouteAllowed(now)
+        val promptSoundAllowed = routeAllowed && enableSoundFeedback
+        val actionSoundAllowed = routeAllowed && enableVoiceFeedback
+        val vibrationAllowed = routeAllowed && enableVibrationFeedback
+        val ttsAllowed = routeAllowed && enableVoiceFeedback
         val filteredMag = filterMagnitude(magnitude)
 
-        if (handleStrongSuppression(filteredMag, now)) return
+        if (!routeAllowed || !vibrationAllowed) {
+            stopVibration()
+        }
+
+        if (handleStrongSuppression(filteredMag, now, promptSoundAllowed)) return
 
         val adaptiveTrigger = max(thresholdTrigger, noiseMean + noiseMultiplier * getNoiseStd())
         val adaptiveReset = max(thresholdReset, adaptiveTrigger * 0.6f)
@@ -469,8 +505,12 @@ class MagnetService : Service(), SensorEventListener {
                     state = State.TIMING
                     triggerStartTime = now
                     isLongPressTriggered = false
-                    startContinuousVibration()
-                    playPressSound()
+                    if (vibrationAllowed) {
+                        startContinuousVibration()
+                    }
+                    if (promptSoundAllowed) {
+                        playPressSound()
+                    }
                     activePole = if (usePolarity) samplePoleDuringWindow(now) else "all"
                 }
             }
@@ -481,18 +521,20 @@ class MagnetService : Service(), SensorEventListener {
                         val poleForAction = if (usePolarity) activePole else "all"
                         if (!usePolarity || poleForAction == "N" || poleForAction == "S" || poleForAction == "all") {
                             val action = selectActionForPole(poleForAction, false)
-                            performAction(action, routeAllowed)
+                            performAction(action, routeAllowed, ttsAllowed, actionSoundAllowed)
                         }
                     }
                     state = State.COOLDOWN
                     lastActionTime = now
                 } else if (!isLongPressTriggered && now - triggerStartTime >= longPressThresholdMs) {
                     stopVibration()
-                    playDoubleBeep()
+                    if (vibrationAllowed) {
+                        playDoubleBeep()
+                    }
                     val poleForAction = if (usePolarity) activePole else "all"
                     if (!usePolarity || poleForAction == "N" || poleForAction == "S" || poleForAction == "all") {
                         val action = selectActionForPole(poleForAction, true)
-                        performAction(action, routeAllowed)
+                        performAction(action, routeAllowed, ttsAllowed, actionSoundAllowed)
                         isLongPressTriggered = true
                         state = State.COOLDOWN
                         lastActionTime = now
@@ -557,7 +599,7 @@ class MagnetService : Service(), SensorEventListener {
         stopVibration()
     }
 
-    private fun performAction(action: String, allowed: Boolean) {
+    private fun performAction(action: String, allowed: Boolean, ttsAllowed: Boolean = enableVoiceFeedback, soundAllowed: Boolean = enableVoiceFeedback) {
         val label = when (action) {
             "voice" -> "语音助手"
             "next" -> "下一曲"
@@ -574,9 +616,14 @@ class MagnetService : Service(), SensorEventListener {
         }
 
         logAction(label, true)
-        playActionSound(action)
+        if (ttsAllowed) {
+            speakActionLabel(label)
+        }
+        if (soundAllowed) {
+            playActionSound(action)
+        }
         when (action) {
-            "voice" -> triggerVoiceAssistant(alreadyPlayedSound = true)
+            "voice" -> triggerVoiceAssistant(alreadyPlayedSound = soundAllowed, feedbackAllowed = allowed && soundAllowed)
             "next" -> triggerMediaKey(KeyEvent.KEYCODE_MEDIA_NEXT)
             "previous" -> triggerMediaKey(KeyEvent.KEYCODE_MEDIA_PREVIOUS)
             "volume_up" -> adjustVolume(AudioManager.ADJUST_RAISE)
@@ -609,6 +656,7 @@ class MagnetService : Service(), SensorEventListener {
     }
 
     private fun startContinuousVibration() {
+        if (!enableVibrationFeedback || !lastAudioRouteAllowed) return
         val vibrator = getVibrator()
         if (!vibrator.hasVibrator()) return
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
@@ -624,6 +672,7 @@ class MagnetService : Service(), SensorEventListener {
     }
 
     private fun playDoubleBeep() {
+        if (!enableVibrationFeedback || !lastAudioRouteAllowed) return
         val vibrator = getVibrator()
         if (vibrator.hasVibrator()) {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
@@ -662,6 +711,7 @@ class MagnetService : Service(), SensorEventListener {
     }
 
     private fun playActionSound(action: String) {
+        if (!enableVoiceFeedback) return
         val key = when (action) {
             "play_pause", "media" -> "toggle"
             "previous" -> "prev"
@@ -675,10 +725,12 @@ class MagnetService : Service(), SensorEventListener {
     }
 
     private fun playPressSound() {
+        if (!enableSoundFeedback) return
         playSound("press")
     }
 
     private fun playPressFailureChime() {
+        if (!enableSoundFeedback) return
         val intervals = listOf(0L, 150L, 300L)
         intervals.forEach { delay ->
             soundReleaseHandler.postDelayed({ playPressSound() }, delay)
@@ -686,6 +738,7 @@ class MagnetService : Service(), SensorEventListener {
     }
 
     private fun playSound(key: String?) {
+        if (!lastAudioRouteAllowed) return
         val pool = ensureSoundEffects() ?: return
         val soundId = key?.let { soundIds[it] } ?: return
         pool.play(soundId, 1f, 1f, 1, 0, 1f)
@@ -704,8 +757,48 @@ class MagnetService : Service(), SensorEventListener {
         soundReleaseHandler.postDelayed(soundReleaseRunnable, soundReleaseDelayMs)
     }
 
-    private fun triggerVoiceAssistant(alreadyPlayedSound: Boolean = false) {
-        if (!alreadyPlayedSound) {
+    private fun speakActionLabel(label: String) {
+        val tts = ensureTts() ?: run {
+            pendingTtsText = label
+            return
+        }
+        if (!isTtsReady) {
+            pendingTtsText = label
+            return
+        }
+        pendingTtsText = null
+        tts.speak(label, TextToSpeech.QUEUE_FLUSH, null, "action_$label")
+    }
+
+    private fun ensureTts(): TextToSpeech? {
+        if (textToSpeech != null && isTtsReady) return textToSpeech
+        if (textToSpeech == null) {
+            textToSpeech = TextToSpeech(this) { status ->
+                isTtsReady = status == TextToSpeech.SUCCESS
+                if (isTtsReady) {
+                    textToSpeech?.language = Locale.getDefault()
+                    pendingTtsText?.let {
+                        speakActionLabel(it)
+                    }
+                    pendingTtsText = null
+                } else {
+                    pendingTtsText = null
+                }
+            }
+        }
+        return textToSpeech
+    }
+
+    private fun shutdownTts() {
+        isTtsReady = false
+        pendingTtsText = null
+        textToSpeech?.stop()
+        textToSpeech?.shutdown()
+        textToSpeech = null
+    }
+
+    private fun triggerVoiceAssistant(alreadyPlayedSound: Boolean = false, feedbackAllowed: Boolean = true) {
+        if (!alreadyPlayedSound && feedbackAllowed) {
             playSound("assistant")
         }
         if (AccessibilityVoiceService.requestVoice(this)) {
@@ -831,7 +924,8 @@ class MagnetService : Service(), SensorEventListener {
             routeMessage?.let { logToUI(it) }
         }
 
-        return reason == null
+        lastAudioRouteAllowed = reason == null
+        return lastAudioRouteAllowed
     }
 
     private fun sendBroadcastToUI(x: Float, y: Float, z: Float, mag: Float, pole: String) {

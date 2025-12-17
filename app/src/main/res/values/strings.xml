@@ -6,7 +6,7 @@
     <!-- Main UI -->
     <string name="main_title">MagnetController</string>
     <string name="main_subtitle"></string>
-    <string name="manual_zero">🔄 手动归零</string>
+    <string name="manual_zero">🔔 手动归零</string>
     <string name="open_settings">⚙️ 设置</string>
     <string name="pole_unknown">极性未检测</string>
     <string name="pole_all">极性不区分（全磁场触发）</string>
@@ -18,7 +18,7 @@
     <string name="status_long_pressed">已触发长按</string>
     <string name="log_recent">最近日志</string>
     <string name="log_waiting">等待事件...</string>
-    <string name="tip_text">提示：磁铁靠近霍尔传感器触发，非指定蓝牙播放设备/外放时动作不会执行。</string>
+    <string name="tip_text">提示：磁铁靠近霍尔传感器触发，非白名单蓝牙播放设备/外放时不仅动作不执行，并且不会触发提示音或震动。</string>
     <string name="manual_zero_requested">已请求手动归零</string>
 
     <!-- Notifications -->
@@ -33,6 +33,13 @@
     <string name="bt_select_btn">选择蓝牙设备</string>
     <string name="bt_no_bonded">未找到已配对设备，请先在系统蓝牙中配对。</string>
     <string name="bt_permission_denied">未授予蓝牙权限，无法获取设备列表。</string>
-    <string name="bt_selected_missing">已选设备：（未找到已配对设备，仍按地址限制）</string>
+    <string name="bt_selected_missing">已选设备： （未找到已配对设备，仍按地址限制）</string>
     <string name="bt_not_supported">当前设备不支持蓝牙</string>
+
+    <!-- Feedback toggles -->
+    <string name="feedback_title">触发反馈</string>
+    <string name="feedback_desc">控制磁压操作时的提示音、语音播报和震动反馈，便于戴头盔或环境噪声时快速关停。</string>
+    <string name="feedback_sound">触发提示音</string>
+    <string name="feedback_voice">语音播报</string>
+    <string name="feedback_vibration">震动反馈</string>
 </resources>

@@ -305,6 +305,59 @@
             </LinearLayout>
         </LinearLayout>
 
+        <!-- 触发反馈 -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:padding="16dp"
+            android:layout_marginBottom="12dp"
+            android:background="@drawable/bg_card">
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="@string/feedback_title"
+                android:textStyle="bold"
+                android:textSize="16sp"
+                android:textColor="#111827" />
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="@string/feedback_desc"
+                android:textColor="#6B7280"
+                android:textSize="12sp"
+                android:paddingBottom="10dp" />
+
+            <androidx.appcompat.widget.SwitchCompat
+                android:id="@+id/switchFeedbackSound"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="@string/feedback_sound"
+                android:textColor="#111827"
+                android:paddingTop="4dp"
+                android:paddingBottom="4dp" />
+
+            <androidx.appcompat.widget.SwitchCompat
+                android:id="@+id/switchFeedbackVoice"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="@string/feedback_voice"
+                android:textColor="#111827"
+                android:paddingTop="4dp"
+                android:paddingBottom="4dp" />
+
+            <androidx.appcompat.widget.SwitchCompat
+                android:id="@+id/switchFeedbackVibration"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="@string/feedback_vibration"
+                android:textColor="#111827"
+                android:paddingTop="4dp"
+                android:paddingBottom="4dp" />
+        </LinearLayout>
+
         <!-- 自动归零 -->
         <LinearLayout
             android:layout_width="match_parent"

@@ -79,6 +79,9 @@ class SettingsActivity : AppCompatActivity() {
         setSpinnerSelection(binding.spSShort, prefs.sShortAction)
         setSpinnerSelection(binding.spSLong, prefs.sLongAction)
         binding.cbUsePolarity.isChecked = prefs.usePolarity
+        binding.switchFeedbackSound.isChecked = prefs.enableFeedbackSound
+        binding.switchFeedbackVoice.isChecked = prefs.enableFeedbackVoice
+        binding.switchFeedbackVibration.isChecked = prefs.enableFeedbackVibration
 
         updateActionVisibility()
     }
@@ -127,6 +130,9 @@ class SettingsActivity : AppCompatActivity() {
         prefs.strongSuppressionDurationMs = binding.etStrongSuppressionDuration.text.toString().toLongOrNull() ?: 400L
         prefs.strongSuppressionJitter = binding.etStrongSuppressionJitter.text.toString().toFloatOrNull() ?: 40f
         prefs.usePolarity = binding.cbUsePolarity.isChecked
+        prefs.enableFeedbackSound = binding.switchFeedbackSound.isChecked
+        prefs.enableFeedbackVoice = binding.switchFeedbackVoice.isChecked
+        prefs.enableFeedbackVibration = binding.switchFeedbackVibration.isChecked
 
         prefs.poleMode = if (binding.rbDifferent.isChecked) "different" else "both"
 
