@@ -25,11 +25,9 @@ import android.os.PowerManager
 import android.os.VibrationEffect
 import android.os.Vibrator
 import android.os.VibratorManager
-import android.speech.tts.TextToSpeech
 import android.util.Log
 import android.view.KeyEvent
 import androidx.core.app.NotificationCompat
-import java.util.Locale
 import kotlin.math.max
 import kotlin.math.roundToInt
 import kotlin.math.sqrt
@@ -104,10 +102,6 @@ class MagnetService : Service(), SensorEventListener {
     private var enableSoundFeedback = true
     private var enableVoiceFeedback = false
     private var enableVibrationFeedback = true
-
-    private var textToSpeech: TextToSpeech? = null
-    private var isTtsReady = false
-    private var pendingTtsText: String? = null
 
     private var soundPool: SoundPool? = null
     private val soundIds = mutableMapOf<String, Int>()
@@ -193,10 +187,6 @@ class MagnetService : Service(), SensorEventListener {
         enableSoundFeedback = prefs.enableFeedbackSound
         enableVoiceFeedback = prefs.enableFeedbackVoice
         enableVibrationFeedback = prefs.enableFeedbackVibration
-        if (!enableVoiceFeedback) {
-            shutdownTts()
-            pendingTtsText = null
-        }
         if (!enableVibrationFeedback) {
             stopVibration()
         }
@@ -327,7 +317,6 @@ class MagnetService : Service(), SensorEventListener {
         unregisterReceiver(screenReceiver)
         stopVibration()
         releaseSoundEffects()
-        shutdownTts()
         syncRecentLogsToUi()
     }
 
@@ -485,9 +474,8 @@ class MagnetService : Service(), SensorEventListener {
     private fun processLogic(magnitude: Float, now: Long) {
         val routeAllowed = isAudioRouteAllowed(now)
         val promptSoundAllowed = routeAllowed && enableSoundFeedback
-        val actionSoundAllowed = routeAllowed && enableVoiceFeedback
+        val actionVoiceAllowed = routeAllowed && enableVoiceFeedback
         val vibrationAllowed = routeAllowed && enableVibrationFeedback
-        val ttsAllowed = routeAllowed && enableVoiceFeedback
         val filteredMag = filterMagnitude(magnitude)
 
         if (!routeAllowed || !vibrationAllowed) {
@@ -521,7 +509,7 @@ class MagnetService : Service(), SensorEventListener {
                         val poleForAction = if (usePolarity) activePole else "all"
                         if (!usePolarity || poleForAction == "N" || poleForAction == "S" || poleForAction == "all") {
                             val action = selectActionForPole(poleForAction, false)
-                            performAction(action, routeAllowed, ttsAllowed, actionSoundAllowed)
+                            performAction(action, routeAllowed, actionVoiceAllowed)
                         }
                     }
                     state = State.COOLDOWN
@@ -534,7 +522,7 @@ class MagnetService : Service(), SensorEventListener {
                     val poleForAction = if (usePolarity) activePole else "all"
                     if (!usePolarity || poleForAction == "N" || poleForAction == "S" || poleForAction == "all") {
                         val action = selectActionForPole(poleForAction, true)
-                        performAction(action, routeAllowed, ttsAllowed, actionSoundAllowed)
+                        performAction(action, routeAllowed, actionVoiceAllowed)
                         isLongPressTriggered = true
                         state = State.COOLDOWN
                         lastActionTime = now
@@ -599,7 +587,7 @@ class MagnetService : Service(), SensorEventListener {
         stopVibration()
     }
 
-    private fun performAction(action: String, allowed: Boolean, ttsAllowed: Boolean = enableVoiceFeedback, soundAllowed: Boolean = enableVoiceFeedback) {
+    private fun performAction(action: String, allowed: Boolean, voiceAllowed: Boolean) {
         val label = when (action) {
             "voice" -> "语音助手"
             "next" -> "下一曲"
@@ -616,14 +604,11 @@ class MagnetService : Service(), SensorEventListener {
         }
 
         logAction(label, true)
-        if (ttsAllowed) {
-            speakActionLabel(label)
-        }
-        if (soundAllowed) {
-            playActionSound(action)
+        if (voiceAllowed) {
+            playActionVoice(action)
         }
         when (action) {
-            "voice" -> triggerVoiceAssistant(alreadyPlayedSound = soundAllowed, feedbackAllowed = allowed && soundAllowed)
+            "voice" -> triggerVoiceAssistant(alreadyPlayedSound = voiceAllowed, feedbackAllowed = allowed && voiceAllowed)
             "next" -> triggerMediaKey(KeyEvent.KEYCODE_MEDIA_NEXT)
             "previous" -> triggerMediaKey(KeyEvent.KEYCODE_MEDIA_PREVIOUS)
             "volume_up" -> adjustVolume(AudioManager.ADJUST_RAISE)
@@ -710,7 +695,7 @@ class MagnetService : Service(), SensorEventListener {
         }
     }
 
-    private fun playActionSound(action: String) {
+    private fun playActionVoice(action: String) {
         if (!enableVoiceFeedback) return
         val key = when (action) {
             "play_pause", "media" -> "toggle"
@@ -755,46 +740,6 @@ class MagnetService : Service(), SensorEventListener {
     private fun scheduleSoundRelease() {
         soundReleaseHandler.removeCallbacks(soundReleaseRunnable)
         soundReleaseHandler.postDelayed(soundReleaseRunnable, soundReleaseDelayMs)
-    }
-
-    private fun speakActionLabel(label: String) {
-        val tts = ensureTts() ?: run {
-            pendingTtsText = label
-            return
-        }
-        if (!isTtsReady) {
-            pendingTtsText = label
-            return
-        }
-        pendingTtsText = null
-        tts.speak(label, TextToSpeech.QUEUE_FLUSH, null, "action_$label")
-    }
-
-    private fun ensureTts(): TextToSpeech? {
-        if (textToSpeech != null && isTtsReady) return textToSpeech
-        if (textToSpeech == null) {
-            textToSpeech = TextToSpeech(this) { status ->
-                isTtsReady = status == TextToSpeech.SUCCESS
-                if (isTtsReady) {
-                    textToSpeech?.language = Locale.getDefault()
-                    pendingTtsText?.let {
-                        speakActionLabel(it)
-                    }
-                    pendingTtsText = null
-                } else {
-                    pendingTtsText = null
-                }
-            }
-        }
-        return textToSpeech
-    }
-
-    private fun shutdownTts() {
-        isTtsReady = false
-        pendingTtsText = null
-        textToSpeech?.stop()
-        textToSpeech?.shutdown()
-        textToSpeech = null
     }
 
     private fun triggerVoiceAssistant(alreadyPlayedSound: Boolean = false, feedbackAllowed: Boolean = true) {
