@@ -1,7 +1,7 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">MagnetController</string>
-    <string name="accessibility_description">用于模拟长按 Home 键唤醒语音助手</string>
+    <string name="accessibility_description">用于保持磁控后台辅助服务状态</string>
 
     <!-- Main UI -->
     <string name="main_title">MagnetController</string>
@@ -33,6 +33,7 @@
     <!-- Notifications -->
     <string name="notification_running">磁控助手后台运行</string>
     <string name="notification_listening">保持后台以便磁控响应</string>
+    <string name="notification_ski_mode">滑雪模式：息屏高响应运行中</string>
     <string name="notification_channel_name">磁控助手前台</string>
 
     <!-- Bluetooth gating -->
@@ -59,6 +60,7 @@
 
     <!-- Service logs -->
     <string name="log_settings_reloaded">设置已重新加载</string>
+    <string name="log_foreground_start_error">启动前台服务失败：%1$s</string>
     <string name="log_fallback_calibrated_sensor">未找到未校准磁力计，已退回到已校准传感器</string>
     <string name="log_register_sensor_failed">无法注册磁力计监听</string>
     <string name="log_reset_baseline">已重置零点 (X=%1$d, Y=%2$d, Z=%3$d)</string>
@@ -67,8 +69,14 @@
     <string name="log_strong_suppression">磁场过强且稳定，已忽略本次触发</string>
     <string name="log_action_executed">动作 %1$s [已执行]</string>
     <string name="log_action_skipped">动作 %1$s [未执行]</string>
+    <string name="log_heartbeat_ok">后台心跳正常</string>
+    <string name="log_sensor_watchdog_restart">传感器 %1$d ms 未回调，已重启监听</string>
+    <string name="log_sensor_watchdog_error">重启传感器监听失败：%1$s</string>
+    <string name="log_wakelock_acquired">滑雪模式已保持 CPU 唤醒</string>
+    <string name="log_wakelock_released">已释放滑雪模式唤醒锁</string>
     <string name="log_wakelock_denied">申请 WAKE_LOCK 权限失败</string>
     <string name="log_wakelock_error">申请唤醒锁失败：%1$s</string>
+    <string name="log_wakelock_release_error">释放唤醒锁失败：%1$s</string>
     <string name="log_media_key_error">发送媒体键失败：%1$s</string>
     <string name="log_volume_error">调整音量失败：%1$s</string>
     <string name="log_route_allow_all">已启用“允许所有输出”，跳过蓝牙门控</string>
@@ -90,11 +98,25 @@
     <string name="log_title">运行日志</string>
 
     <!-- Accessibility -->
+    <string name="accessibility_service_label">MagnetController 后台辅助服务</string>
     <string name="content_desc_accessibility_enabled">无障碍已开启</string>
     <string name="content_desc_accessibility_disabled">无障碍未开启</string>
+    <string name="health_waiting">后台自检等待中...</string>
+    <string name="health_ski_on">滑雪模式开</string>
+    <string name="health_ski_off">滑雪模式关</string>
+    <string name="health_wakelock_on">唤醒锁开</string>
+    <string name="health_wakelock_off">唤醒锁关</string>
+    <string name="health_accessibility_on">无障碍已连接</string>
+    <string name="health_accessibility_off">无障碍未连接</string>
+    <string name="health_status_format">%1$s · %2$s · %3$.1f Hz · 传感器 %4$d ms · %5$s</string>
 
     <!-- Settings titles/descriptions -->
     <string name="title_settings">后台调校</string>
+    <string name="title_ski_mode">滑雪后台模式</string>
+    <string name="desc_ski_mode">息屏时保持高采样和 CPU 唤醒，并在开机或蓝牙连接后自动恢复磁控服务。</string>
+    <string name="label_ski_mode">启用滑雪模式（息屏高响应）</string>
+    <string name="label_auto_start_boot">开机后自动恢复服务</string>
+    <string name="label_auto_start_bluetooth">蓝牙设备连接后自动恢复服务</string>
     <string name="title_threshold">触发阈值</string>
     <string name="desc_threshold">超过“触发阈值”开始计时，降到“恢复阈值”且防抖结束后视为抬起。单位：μT / ms</string>
     <string name="label_trigger_threshold">触发阈值(μT)</string>

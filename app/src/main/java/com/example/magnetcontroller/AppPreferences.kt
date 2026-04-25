@@ -124,6 +124,26 @@ class AppPreferences(context: Context) {
         get() = prefs.getBoolean("enable_feedback_vibration", true)
         set(value) = prefs.edit().putBoolean("enable_feedback_vibration", value).apply()
 
+    var skiModeEnabled: Boolean
+        get() = prefs.getBoolean("ski_mode_enabled", true)
+        set(value) = prefs.edit().putBoolean("ski_mode_enabled", value).apply()
+
+    var autoStartOnBoot: Boolean
+        get() = prefs.getBoolean("auto_start_on_boot", true)
+        set(value) = prefs.edit().putBoolean("auto_start_on_boot", value).apply()
+
+    var autoStartOnBluetooth: Boolean
+        get() = prefs.getBoolean("auto_start_on_bluetooth", true)
+        set(value) = prefs.edit().putBoolean("auto_start_on_bluetooth", value).apply()
+
+    var heartbeatIntervalMs: Long
+        get() = prefs.getLong("heartbeat_interval_ms", 8000L)
+        set(value) = prefs.edit().putLong("heartbeat_interval_ms", value).apply()
+
+    var sensorWatchdogTimeoutMs: Long
+        get() = prefs.getLong("sensor_watchdog_timeout_ms", 3000L)
+        set(value) = prefs.edit().putLong("sensor_watchdog_timeout_ms", value).apply()
+
     var recentLogs: List<String>
         get() {
             val raw = prefs.getString("recent_logs_json", "[]") ?: "[]"

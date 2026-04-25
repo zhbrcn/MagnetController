@@ -27,6 +27,59 @@
             android:paddingBottom="12dp"
             android:paddingTop="2dp" />
 
+        <!-- 滑雪后台模式 -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:padding="16dp"
+            android:layout_marginBottom="12dp"
+            android:background="@drawable/bg_card">
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="@string/title_ski_mode"
+                android:textStyle="bold"
+                android:textSize="16sp"
+                android:textColor="#111827" />
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="@string/desc_ski_mode"
+                android:textColor="#6B7280"
+                android:textSize="12sp"
+                android:paddingBottom="10dp" />
+
+            <androidx.appcompat.widget.SwitchCompat
+                android:id="@+id/switchSkiMode"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="@string/label_ski_mode"
+                android:textColor="#111827"
+                android:paddingTop="4dp"
+                android:paddingBottom="4dp" />
+
+            <androidx.appcompat.widget.SwitchCompat
+                android:id="@+id/switchAutoStartBoot"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="@string/label_auto_start_boot"
+                android:textColor="#111827"
+                android:paddingTop="4dp"
+                android:paddingBottom="4dp" />
+
+            <androidx.appcompat.widget.SwitchCompat
+                android:id="@+id/switchAutoStartBluetooth"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="@string/label_auto_start_bluetooth"
+                android:textColor="#111827"
+                android:paddingTop="4dp"
+                android:paddingBottom="4dp" />
+        </LinearLayout>
+
         <!-- 触发阈值 -->
         <LinearLayout
             android:layout_width="match_parent"

@@ -84,6 +84,9 @@ class SettingsActivity : AppCompatActivity() {
         binding.switchFeedbackSound.isChecked = prefs.enableFeedbackSound
         binding.switchFeedbackVoice.isChecked = prefs.enableFeedbackVoice
         binding.switchFeedbackVibration.isChecked = prefs.enableFeedbackVibration
+        binding.switchSkiMode.isChecked = prefs.skiModeEnabled
+        binding.switchAutoStartBoot.isChecked = prefs.autoStartOnBoot
+        binding.switchAutoStartBluetooth.isChecked = prefs.autoStartOnBluetooth
         binding.switchAllowAllOutputs.isChecked = prefs.allowAllOutputs
 
         updateActionVisibility()
@@ -140,6 +143,9 @@ class SettingsActivity : AppCompatActivity() {
         prefs.enableFeedbackSound = binding.switchFeedbackSound.isChecked
         prefs.enableFeedbackVoice = binding.switchFeedbackVoice.isChecked
         prefs.enableFeedbackVibration = binding.switchFeedbackVibration.isChecked
+        prefs.skiModeEnabled = binding.switchSkiMode.isChecked
+        prefs.autoStartOnBoot = binding.switchAutoStartBoot.isChecked
+        prefs.autoStartOnBluetooth = binding.switchAutoStartBluetooth.isChecked
         prefs.allowAllOutputs = binding.switchAllowAllOutputs.isChecked
 
         prefs.poleMode = if (binding.rbDifferent.isChecked) "different" else "both"

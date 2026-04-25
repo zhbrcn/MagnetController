@@ -48,6 +48,12 @@ class MainActivity : AppCompatActivity() {
                         getString(R.string.content_desc_accessibility_disabled)
                     }
                 }
+                "com.example.magnetcontroller.UPDATE_HEALTH" -> {
+                    val health = intent.getStringExtra("health").orEmpty()
+                    if (health.isNotBlank()) {
+                        binding.tvHealthHint.text = health
+                    }
+                }
                 "com.example.magnetcontroller.UPDATE_RECENT_LOGS" -> {
                     val logs = intent.getStringArrayListExtra("logs") ?: arrayListOf()
                     applyRecentLogs(logs)
@@ -85,6 +91,7 @@ class MainActivity : AppCompatActivity() {
             addAction("com.example.magnetcontroller.UPDATE_UI")
             addAction("com.example.magnetcontroller.UPDATE_LOG")
             addAction("com.example.magnetcontroller.UPDATE_ACCESSIBILITY")
+            addAction("com.example.magnetcontroller.UPDATE_HEALTH")
             addAction("com.example.magnetcontroller.UPDATE_RECENT_LOGS")
         }
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
@@ -216,4 +223,3 @@ class MainActivity : AppCompatActivity() {
         binding.tvTitle.text = span
     }
 }
-

@@ -6,6 +6,7 @@ import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
 import android.app.Service
+import android.annotation.SuppressLint
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
@@ -21,6 +22,7 @@ import android.os.Build
 import android.os.Handler
 import android.os.IBinder
 import android.os.Looper
+import android.os.PowerManager
 import android.os.VibrationEffect
 import android.os.Vibrator
 import android.os.VibratorManager
@@ -44,6 +46,8 @@ class MagnetService : Service(), SensorEventListener {
         private const val FILTER_WINDOW_SIZE = 5
         private const val NOISE_MULTIPLIER = 3.0f
         private const val SOUND_RELEASE_DELAY_MS = 60_000L
+        private const val SENSOR_RESTART_COOLDOWN_MS = 10_000L
+        private const val HEARTBEAT_LOG_COOLDOWN_MS = 60_000L
         private val LONG_PRESS_PATTERN = longArrayOf(0, 200, 100, 200)
     }
 
@@ -71,6 +75,7 @@ class MagnetService : Service(), SensorEventListener {
     private var activePole: String = "none"
     private var lastActionTime = 0L
     private var isScreenOn = true
+    private var serviceStartedForeground = false
 
     private val actionCooldownMs = ACTION_COOLDOWN_MS
     private var longPressThresholdMs = 1500L
@@ -100,6 +105,13 @@ class MagnetService : Service(), SensorEventListener {
     private var currentDelayUs = 0
     private var belowEnergySince = 0L
     private var pendingInitialZero = true
+    private var lastSensorEventTime = 0L
+    private var lastSensorRestartTime = 0L
+    private var lastHeartbeatLogTime = 0L
+    private var heartbeatIntervalMs = 8000L
+    private var sensorWatchdogTimeoutMs = 3000L
+    private var skiModeEnabled = true
+    private var wakeLock: PowerManager.WakeLock? = null
 
     private var autoZeroThreshold = 80f
     private var autoZeroDurationMs = 4000L
@@ -123,6 +135,13 @@ class MagnetService : Service(), SensorEventListener {
     private val soundIds = mutableMapOf<String, Int>()
     private val soundReleaseHandler = Handler(Looper.getMainLooper())
     private val soundReleaseRunnable = Runnable { releaseSoundEffects() }
+    private val heartbeatHandler = Handler(Looper.getMainLooper())
+    private val heartbeatRunnable = object : Runnable {
+        override fun run() {
+            runHeartbeat()
+            heartbeatHandler.postDelayed(this, heartbeatIntervalMs.coerceAtLeast(2000L))
+        }
+    }
 
     private val magWindow = ArrayDeque<Float>()
     private var noiseMean = 0f
@@ -146,7 +165,13 @@ class MagnetService : Service(), SensorEventListener {
         override fun onReceive(context: Context?, intent: Intent?) {
             when (intent?.action) {
                 Intent.ACTION_SCREEN_ON, Intent.ACTION_USER_PRESENT -> isScreenOn = true
-                Intent.ACTION_SCREEN_OFF -> isScreenOn = false
+                Intent.ACTION_SCREEN_OFF -> {
+                    isScreenOn = false
+                    if (skiModeEnabled) {
+                        applySamplingDelay(samplingHighDelayUs)
+                        acquireWakeLockIfNeeded()
+                    }
+                }
             }
         }
     }
@@ -157,6 +182,7 @@ class MagnetService : Service(), SensorEventListener {
         loadSettings()
         createNotificationChannel()
         initSensor()
+        startHeartbeat()
         syncRecentLogsToUi()
 
         val filter = IntentFilter("com.example.magnetcontroller.RELOAD_SETTINGS")
@@ -203,6 +229,9 @@ class MagnetService : Service(), SensorEventListener {
         enableSoundFeedback = prefs.enableFeedbackSound
         enableVoiceFeedback = prefs.enableFeedbackVoice
         enableVibrationFeedback = prefs.enableFeedbackVibration
+        skiModeEnabled = prefs.skiModeEnabled
+        heartbeatIntervalMs = prefs.heartbeatIntervalMs.coerceAtLeast(2000L)
+        sensorWatchdogTimeoutMs = prefs.sensorWatchdogTimeoutMs.coerceAtLeast(1000L)
         if (!enableVibrationFeedback) {
             stopVibration()
         }
@@ -232,6 +261,8 @@ class MagnetService : Service(), SensorEventListener {
         if (magnetometer != null) {
             applySamplingDelay(samplingHighDelayUs)
         }
+        applyWakeLockPolicy()
+        updateForegroundNotification()
         syncRecentLogsToUi()
     }
 
@@ -249,21 +280,49 @@ class MagnetService : Service(), SensorEventListener {
             }
         }
 
+        if (!startOrUpdateForeground()) {
+            stopSelf()
+            return START_NOT_STICKY
+        }
+        applyWakeLockPolicy()
+        return START_STICKY
+    }
+
+    private fun buildNotification(): Notification {
         val notificationIntent = Intent(this, MainActivity::class.java)
         val pendingIntent = PendingIntent.getActivity(this, 0, notificationIntent, PendingIntent.FLAG_IMMUTABLE)
+        val text = if (skiModeEnabled) {
+            getString(R.string.notification_ski_mode)
+        } else {
+            getString(R.string.notification_listening)
+        }
+        val priority = if (skiModeEnabled) NotificationCompat.PRIORITY_LOW else NotificationCompat.PRIORITY_MIN
 
-        val notification: Notification = NotificationCompat.Builder(this, CHANNEL_ID)
+        return NotificationCompat.Builder(this, CHANNEL_ID)
             .setContentTitle(getString(R.string.notification_running))
-            .setContentText(getString(R.string.notification_listening))
+            .setContentText(text)
             .setSmallIcon(R.drawable.ic_magnet)
             .setContentIntent(pendingIntent)
-            .setPriority(NotificationCompat.PRIORITY_MIN)
+            .setPriority(priority)
             .setSilent(true)
             .setOngoing(true)
             .build()
+    }
 
-        startForeground(1, notification)
-        return START_STICKY
+    private fun updateForegroundNotification() {
+        if (!serviceStartedForeground) return
+        startOrUpdateForeground()
+    }
+
+    private fun startOrUpdateForeground(): Boolean {
+        return try {
+            startForeground(1, buildNotification())
+            serviceStartedForeground = true
+            true
+        } catch (e: Exception) {
+            logToUI(getString(R.string.log_foreground_start_error, e.message.orEmpty()), LogCategory.ERROR)
+            false
+        }
     }
 
     private fun createNotificationChannel() {
@@ -291,6 +350,7 @@ class MagnetService : Service(), SensorEventListener {
         magnetometer?.let {
             sensorManager.registerListener(this, it, samplingHighDelayUs, samplingHighDelayUs)
             currentDelayUs = samplingHighDelayUs
+            lastSensorEventTime = System.currentTimeMillis()
         } ?: run {
             logToUI(getString(R.string.log_register_sensor_failed), LogCategory.ERROR)
             stopSelf()
@@ -313,6 +373,13 @@ class MagnetService : Service(), SensorEventListener {
 
     private fun updateSamplingRate(magSq: Float, now: Long) {
         if (magnetometer == null) return
+        if (skiModeEnabled) {
+            if (currentDelayUs != samplingHighDelayUs) {
+                applySamplingDelay(samplingHighDelayUs)
+            }
+            belowEnergySince = 0L
+            return
+        }
         if (magSq >= energyThresholdSq) {
             belowEnergySince = 0L
             if (currentDelayUs != samplingHighDelayUs) {
@@ -334,7 +401,9 @@ class MagnetService : Service(), SensorEventListener {
         sensorManager.unregisterListener(this)
         unregisterReceiver(settingsReceiver)
         unregisterReceiver(screenReceiver)
+        heartbeatHandler.removeCallbacks(heartbeatRunnable)
         stopVibration()
+        releaseWakeLock()
         releaseSoundEffects()
         syncRecentLogsToUi()
     }
@@ -343,6 +412,7 @@ class MagnetService : Service(), SensorEventListener {
         if (event?.sensor?.type != Sensor.TYPE_MAGNETIC_FIELD && event?.sensor?.type != Sensor.TYPE_MAGNETIC_FIELD_UNCALIBRATED) return
 
         val now = System.currentTimeMillis()
+        lastSensorEventTime = now
         lastRawX = event.values[0]
         lastRawY = event.values[1]
         lastRawZ = event.values[2]
@@ -1040,6 +1110,112 @@ class MagnetService : Service(), SensorEventListener {
         val intent = Intent("com.example.magnetcontroller.UPDATE_RECENT_LOGS")
         intent.putStringArrayListExtra("logs", ArrayList(recentLogs))
         intent.setPackage(packageName)
+        sendBroadcast(intent)
+    }
+
+    private fun startHeartbeat() {
+        heartbeatHandler.removeCallbacks(heartbeatRunnable)
+        heartbeatHandler.post(heartbeatRunnable)
+    }
+
+    private fun runHeartbeat() {
+        val now = System.currentTimeMillis()
+        applyWakeLockPolicy()
+        if (skiModeEnabled && currentDelayUs != samplingHighDelayUs) {
+            applySamplingDelay(samplingHighDelayUs)
+        }
+
+        val sensorAge = if (lastSensorEventTime > 0L) now - lastSensorEventTime else Long.MAX_VALUE
+        if (sensorAge > sensorWatchdogTimeoutMs && now - lastSensorRestartTime > SENSOR_RESTART_COOLDOWN_MS) {
+            lastSensorRestartTime = now
+            restartSensorListener()
+            logToUI(getString(R.string.log_sensor_watchdog_restart, sensorAge), LogCategory.STATUS)
+        } else if (now - lastHeartbeatLogTime > HEARTBEAT_LOG_COOLDOWN_MS) {
+            lastHeartbeatLogTime = now
+            logToUI(getString(R.string.log_heartbeat_ok), LogCategory.STATUS)
+        }
+        sendHealthToUi(now)
+    }
+
+    private fun restartSensorListener() {
+        val sensor = magnetometer ?: return
+        try {
+            sensorManager.unregisterListener(this, sensor)
+            val delay = if (skiModeEnabled) samplingHighDelayUs else currentDelayUs.takeIf { it > 0 } ?: samplingHighDelayUs
+            sensorManager.registerListener(this, sensor, delay, delay)
+            currentDelayUs = delay
+            lastSensorEventTime = System.currentTimeMillis()
+        } catch (e: Exception) {
+            logToUI(getString(R.string.log_sensor_watchdog_error, e.message.orEmpty()), LogCategory.ERROR)
+        }
+    }
+
+    private fun applyWakeLockPolicy() {
+        if (skiModeEnabled) {
+            acquireWakeLockIfNeeded()
+        } else {
+            releaseWakeLock()
+        }
+    }
+
+    @SuppressLint("WakelockTimeout")
+    private fun acquireWakeLockIfNeeded() {
+        val existing = wakeLock
+        if (existing?.isHeld == true) return
+        try {
+            val powerManager = getSystemService(Context.POWER_SERVICE) as PowerManager
+            val lock = existing ?: powerManager.newWakeLock(
+                PowerManager.PARTIAL_WAKE_LOCK,
+                "$packageName:MagnetSkiMode"
+            ).apply {
+                setReferenceCounted(false)
+            }
+            wakeLock = lock
+            lock.acquire()
+            logToUI(getString(R.string.log_wakelock_acquired), LogCategory.STATUS)
+        } catch (e: SecurityException) {
+            logToUI(getString(R.string.log_wakelock_denied), LogCategory.ERROR)
+        } catch (e: Exception) {
+            logToUI(getString(R.string.log_wakelock_error, e.message.orEmpty()), LogCategory.ERROR)
+        }
+    }
+
+    private fun releaseWakeLock() {
+        val lock = wakeLock ?: return
+        try {
+            if (lock.isHeld) {
+                lock.release()
+                logToUI(getString(R.string.log_wakelock_released), LogCategory.STATUS)
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, getString(R.string.log_wakelock_release_error, e.message.orEmpty()))
+        } finally {
+            wakeLock = null
+        }
+    }
+
+    private fun sendHealthToUi(now: Long) {
+        if (!isScreenOn) return
+        val sensorAge = if (lastSensorEventTime > 0L) now - lastSensorEventTime else -1L
+        val sampleHz = if (currentDelayUs > 0) 1_000_000f / currentDelayUs else 0f
+        val wakeHeld = wakeLock?.isHeld == true
+        val accessibilityState = if (MagnetAccessibilityService.isConnected) {
+            getString(R.string.health_accessibility_on)
+        } else {
+            getString(R.string.health_accessibility_off)
+        }
+        val text = getString(
+            R.string.health_status_format,
+            if (skiModeEnabled) getString(R.string.health_ski_on) else getString(R.string.health_ski_off),
+            if (wakeHeld) getString(R.string.health_wakelock_on) else getString(R.string.health_wakelock_off),
+            sampleHz,
+            sensorAge.coerceAtLeast(0L),
+            accessibilityState
+        )
+        val intent = Intent("com.example.magnetcontroller.UPDATE_HEALTH").apply {
+            putExtra("health", text)
+            setPackage(packageName)
+        }
         sendBroadcast(intent)
     }
 

@@ -172,6 +172,15 @@
             android:textSize="13sp"
             android:layout_marginTop="8dp"
             tools:text="Connected device: Demo" />
+
+        <TextView
+            android:id="@+id/tvHealthHint"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="@string/health_waiting"
+            android:textColor="#475569"
+            android:textSize="12sp"
+            android:layout_marginTop="6dp" />
     </LinearLayout>
 
     <LinearLayout
